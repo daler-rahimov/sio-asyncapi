@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "sio_asyncapi"
+version = "0.1.0"
+description = "Flask SocketIO with auto-generate Asyncapi documentation"
+authors = ["Daler Rahimov <daler.edu@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+# packages = [{include = "src/sio_asyncapi"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+flask-socketio = "^5.3.2"
+pydantic = "^1.10.2"
+pyyaml = "^6.0"
+python-engineio = "^4.3.4"
+loguru = "^0.6.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.0"
+pytest-cov = "^4.0.0"
+autopep8 = "^2.0.0"
+codespell = "^2.2.2"
+ptipython = "^1.0.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
