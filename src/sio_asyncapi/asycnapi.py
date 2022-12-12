@@ -3,7 +3,7 @@ import inspect
 from typing import Callable, Optional, Type
 
 from . import asycnapi_spec as spec
-from flask import Flask
+from flask import Flask, Request
 from flask_socketio import SocketIO
 from pydantic import BaseModel, ValidationError
 
@@ -35,7 +35,7 @@ class AsyncAPISocketIO(SocketIO):
 
     def __init__(
         self,
-        app: Optional[Flask],
+        app: Optional[Flask]=None,
         validation: bool = True,
         generate_doc:bool = False,
         doc_template: Optional[str] = None,
@@ -88,7 +88,6 @@ class AsyncAPISocketIO(SocketIO):
             self,
             message,
             namespace=None,
-            return_value: Optional[str] = None,
             *,
             get_from_typehint: bool = False,
             response_model: Optional[Type[BaseModel]] = None,
@@ -135,13 +134,11 @@ class AsyncAPISocketIO(SocketIO):
                 )
 
             def wrapper(*args, **kwargs):
+                # return handler(*args, **kwargs)
                 new_handler = self._handle_all(
-                    handler=handler,
-                    return_value=return_value,
                     request_model=request_model,
                     response_model=response_model
-                )
-                # new_handler = handler
+                )(handler)
                 return new_handler(*args, **kwargs)
 
             # Decorate with SocketIO.on decorator
@@ -150,16 +147,12 @@ class AsyncAPISocketIO(SocketIO):
         return decorator
 
     def _handle_all(self,
-                    handler=None,
-                    return_value=None,
                     response_model: Optional[Type[BaseModel]] = None,
                     request_model: Optional[Type[BaseModel]] = None
                     ):
         """Decorator to validate request and response with pydantic models
         Args:
             handler (Callable, optional): handler function. Defaults to None.
-            return_value (Optional[str], optional): Return single value instead of entire
-                object. Defaults to None.
             response_model (Optional[Type[BaseModel]], optional): Acknowledge model used
                 for validation and documentation. Defaults to None.
             request_model (Optional[Type[BaseModel]], optional): Request payload model used
@@ -167,26 +160,36 @@ class AsyncAPISocketIO(SocketIO):
 
         Raises: RequestValidationError, ResponseValidationError
         """
-        if handler is None:
-            return partial(self._handle_all, return_value=return_value)
 
-        @wraps(handler)
-        def wrapper(request):
-            try:
-                if self.validation and request_model:
-                    request_model.validate(request)# this will raise ValidationError
-            except ValidationError as e:
-                logger.error(f"ValidationError for incoming request: {e}")
-                raise RequestValidationError(e)
+        def decorator(handler: Callable):
 
-            response = handler(request)
-            try:
-                if self.validation and response_model:
-                    response_model.validate(response)
-            except ValidationError as e:
-                logger.error(f"ValidationError for outgoing response: {e}")
-                raise ResponseValidationError(e)
-            return response.json()
+            def wrapper(*args, **kwargs):
+                request = args[0] if len(args) > 0 else None
+                if not request:
+                    request = kwargs.get("request")
+                if request:
+                    try:
+                        if self.validation and request_model:
+                            request_model.validate(request)# this will raise ValidationError
+                    except ValidationError as e:
+                        logger.error(f"ValidationError for incoming request: {e}")
+                        raise RequestValidationError(e)
 
-        return wrapper
+                    response = handler(*args, **kwargs)
+                    try:
+                        if self.validation and response_model:
+                            response_model.validate(response)
+                    except ValidationError as e:
+                        logger.error(f"ValidationError for outgoing response: {e}")
+                        raise ResponseValidationError(e)
+
+                    if isinstance(response, BaseModel):
+                        return response.json()
+                    else:
+                        return response
+                else:
+                    return handler(*args, **kwargs)
+
+            return wrapper
+        return decorator
 
