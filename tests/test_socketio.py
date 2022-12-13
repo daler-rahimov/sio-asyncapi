@@ -8,7 +8,7 @@ import unittest
 from flask import Flask, session, request, json as flask_json
 from flask_socketio import send, emit, join_room, leave_room, \
     Namespace, disconnect
-from sio_asyncapi.asycnapi import AsyncAPISocketIO as SocketIO
+from sio_asyncapi.application import AsyncAPISocketIO as SocketIO
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret'

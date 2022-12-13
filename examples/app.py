@@ -9,7 +9,6 @@ from flask_socketio import SocketIO, emit, join_room, leave_room, \
     close_room, rooms, disconnect
 
 from sio_asyncapi import AsyncAPISocketIO, ResponseValidationError, RequestValidationError
-from asyncapi_schema_pydantic import Info, Server
 
 # Set this variable to "threading", "eventlet" or "gevent" to test the
 # different async modes, or leave it set to None for the application to choose
@@ -221,23 +220,22 @@ def test(message: DownloadFileRequest) -> DownloadeAccepted:
 #     print('Client disconnected', request.sid)
 
 
-if __name__ == '__main__':
-    socketio.run(app, debug=True)
+# if __name__ == '__main__':
+#     socketio.run(app, debug=True)
 
 
-# """
-# Generate and save AsycnAPI [https://studio.asyncapi.com/] specification in ./asyncapi_2.5.0.yml
-# Usage: python asycnapi_save_doc
-# """
-# from sio_asyncapi.asycnapi import spec
-# import pathlib
+"""
+Generate and save AsycnAPI [https://studio.asyncapi.com/] specification in ./asyncapi_2.5.0.yml
+Usage: python asycnapi_save_doc
+"""
+import pathlib
 
-# FILE_NAME = "asyncapi_2.5.0.yml"
+FILE_NAME = "asyncapi_2.5.0.yml"
 
-# if __name__ == "__main__":
-#     path = pathlib.Path(__file__).parent / FILE_NAME
-#     doc_str = spec.get_yaml_str_doc()
-#     with open(path, "w") as f:
-#         # doc_str = spec.get_json_str_doc()
-#         f.write(doc_str)
-#     print(doc_str)
+if __name__ == "__main__":
+    path = pathlib.Path(__file__).parent / FILE_NAME
+    doc_str = socketio.asyncapi_doc.get_yaml()
+    with open(path, "w") as f:
+        # doc_str = spec.get_json_str_doc()
+        f.write(doc_str)
+    print(doc_str)
