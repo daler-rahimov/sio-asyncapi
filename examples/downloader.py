@@ -8,11 +8,7 @@ from typing import Optional
 from pathlib import Path
 import pathlib
 
-# Set this variable to "threading", "eventlet" or "gevent" to test the
-# different async modes, or leave it set to None for the application to choose
-# the best option based on installed packages.
 async_mode = None
-
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 
@@ -30,15 +26,10 @@ socketio = AsyncAPISocketIO(
     server_name="DOWNLOADER_BACKEND",
 )
 
-from engineio.payload import Payload
-Payload.max_decode_packets = 16
-
-class AnyModel(BaseModel):
-    pass
-
+# Pydantic models
 class SocketBaseResponse(BaseModel, abc.ABC):
     """Base model for all responses"""
-    success: bool = Field(True, description="Success status" )
+    success: bool = Field(True, description="Success status")
     error: Optional[str] = Field(
         None,
         description="Error message if any",
@@ -50,25 +41,34 @@ class SocketErrorResponse(SocketBaseResponse):
     success: bool = False
     error: str = Field(..., description="Error message if any", example="Invalid request")
 
-class DownloadFileRequest(BaseModel):
-    url: AnyUrl = Field(...,
-        description="URL to download",
-        example="https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg")
-    location: Path = Field(...,
-        description="Destination local to file system; should be an absolute path",
-        example="/tmp/tree.jpg")
-    check_hash: Optional[bool] = False
 
 class DownloadAccepted(SocketBaseResponse):
+    """Response model for download file"""
     class Data(BaseModel):
         is_accepted: bool = True
     data: Data
 
 
+class DownloadFileRequest(BaseModel):
+    """Request model for download file"""
+    url: AnyUrl = Field(..., description="URL to download",
+                        example="https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg")
+    location: Path = Field(...,
+                           description="Destination local to file system; should be an absolute path",
+                           example="/tmp/tree.jpg")
+    check_hash: Optional[bool] = False
+
+
 downloader_queue = []
+
+
+# Handlers
 @socketio.on('download_file', get_from_typehint=True)
 def download_file(request: DownloadFileRequest) -> DownloadAccepted:
-    """Download a file from a URL to a server file system"""
+    """
+    Except request to download file from URL and save to server's file system. </br>
+    Requests are **not** executed immediately, but added to queue.
+    """
     # check if file exists
     request = DownloadFileRequest.parse_obj(request)
     if pathlib.Path(request.location).exists():
@@ -84,7 +84,11 @@ def download_file(request: DownloadFileRequest) -> DownloadAccepted:
 
 
 @socketio.on_error_default(model=SocketBaseResponse)
-def default_error_handler(e):
+def default_error_handler(e: Exception):
+    """
+    Default error handler. It called if no other error handler defined.
+    Handles RequestValidationError and ResponseValidationError errors.
+    """
     if isinstance(e, RequestValidationError):
         logger.error(f"Request validation error: {e}")
         return SocketErrorResponse(error=str(e)).json()
@@ -95,20 +99,19 @@ def default_error_handler(e):
         logger.critical(f"Unknown error: {e}")
         raise e
 
+
 if __name__ == '__main__':
     socketio.run(app, debug=True)
 
 
+# Generate and save AsycnAPI [https://studio.asyncapi.com/] specification in ./asyncapi_2.5.0.yml
+# Usage: python asycnapi_save_doc
+FILE_NAME = "downloader.yml"
 
-# # Generate and save AsycnAPI [https://studio.asyncapi.com/] specification in ./asyncapi_2.5.0.yml
-# # Usage: python asycnapi_save_doc
-# import pathlib
-# FILE_NAME = "downloader.yml"
-
-# if __name__ == "__main__":
-#     path = pathlib.Path(__file__).parent / FILE_NAME
-#     doc_str = socketio.asyncapi_doc.get_yaml()
-#     with open(path, "w") as f:
-#         # doc_str = spec.get_json_str_doc()
-#         f.write(doc_str)
-#     print(doc_str)
+if __name__ == "__main__":
+    path = pathlib.Path(__file__).parent / FILE_NAME
+    doc_str = socketio.asyncapi_doc.get_yaml()
+    with open(path, "w") as f:
+        # doc_str = spec.get_json_str_doc()
+        f.write(doc_str)
+    print(doc_str)
