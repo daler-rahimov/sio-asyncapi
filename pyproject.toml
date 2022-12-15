@@ -23,6 +23,7 @@ autopep8 = "^2.0.0"
 codespell = "^2.2.2"
 ptipython = "^1.0.1"
 redis = "^4.4.0"
+pylint = "^2.15.8"
 
 [build-system]
 requires = ["poetry-core"]
