@@ -68,34 +68,6 @@ class AsyncAPISocketIO(SocketIO):
         super().__init__(app=app, **kwargs)
 
 
-    def on_error_default(self, *args, **kwargs):
-        """Decorator to register a SocketIO error handler with additional
-        functionalities.  If no arguments default Flask-SocketIO error handler
-        if `model` is provided it's used for generating AsyncAPI spec and validation.
-
-        Example::
-
-            @socketio.on_error_default(model=SocketError)
-            def default_error_handler(e):
-                pass
-        Args:
-            model (Optional[BaseModel], optional): pydantic model. Defaults to None.
-
-        """
-        if len(args) == 1 and len(kwargs) == 0 and callable(args[0]):
-            # the decorator was invoked without arguments
-            # args[0] is the decorated function
-            return super().on_error_default(args[0])
-        else:
-            # the decorator was invoked with arguments
-            assert kwargs.get("model") is not None, "model is required"
-            # TODO: add to spec and validation here
-            _super = super()
-            def set_on_error_default(exception_handler):
-                return _super.on_error_default(exception_handler)
-
-            return set_on_error_default
-
     def on(
             self,
             message,

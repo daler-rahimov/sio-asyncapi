@@ -83,7 +83,7 @@ def download_file(request: DownloadFileRequest) -> DownloadAccepted:
         return DownloadAccepted(data=DownloadAccepted.Data(is_accepted=True))
 
 
-@socketio.on_error_default(model=SocketBaseResponse)
+@socketio.on_error_default
 def default_error_handler(e: Exception):
     """
     Default error handler. It called if no other error handler defined.
