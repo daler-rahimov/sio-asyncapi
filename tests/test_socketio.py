@@ -5,9 +5,12 @@ of SocketIO.
 import json
 import unittest
 
-from flask import Flask, session, request, json as flask_json
-from flask_socketio import send, emit, join_room, leave_room, \
-    Namespace, disconnect
+from flask import Flask
+from flask import json as flask_json
+from flask import request, session
+from flask_socketio import (Namespace, disconnect, emit, join_room, leave_room,
+                            send)
+
 from sio_asyncapi.application import AsyncAPISocketIO as SocketIO
 
 app = Flask(__name__)

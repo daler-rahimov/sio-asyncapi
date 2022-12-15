@@ -1,5 +1,7 @@
 from flask_socketio import SocketIOTestClient
-from .fixtures import downloader_queue, client
+
+from .fixtures import client, downloader_queue
+
 _ = client
 
 def test_download_file(client: SocketIOTestClient):

@@ -1,8 +1,8 @@
-from flask_socketio import SocketIOTestClient
-from .fixtures import socketio
-from sio_asyncapi import AsyncAPISocketIO
 import pathlib
 from subprocess import check_call
+
+from .fixtures import socketio
+
 
 def test_validate_asycnapi_doc():
     FILE_NAME = "tmp_test_doc.yml"

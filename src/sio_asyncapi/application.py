@@ -1,10 +1,12 @@
 import inspect
-from typing import Callable, Optional, Type, List, Union
+from typing import Callable, Optional, Type, Union
+
 from flask import Flask
 from flask_socketio import SocketIO
-from pydantic import BaseModel, ValidationError
-from sio_asyncapi.asyncapi.docs import AsyncAPIDoc, NotProvidedType
 from loguru import logger
+from pydantic import BaseModel, ValidationError
+
+from sio_asyncapi.asyncapi.docs import AsyncAPIDoc, NotProvidedType
 
 class RequestValidationError(Exception):
     pass
