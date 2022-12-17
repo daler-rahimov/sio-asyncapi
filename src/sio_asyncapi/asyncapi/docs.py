@@ -106,7 +106,7 @@ class AsyncAPIDoc(AsyncAPIBase):
             message_name = name.title()
 
         # TODO: make sure schema name is unique
-        if ack_data_model is "NotProvided":
+        if ack_data_model == "NotProvided":
             ack = {"$ref": "#/components/schemas/NoSpec"}
         elif isinstance(ack_data_model, type(BaseModel)):
             ack_schema_name = ack_data_model.__name__ # type: ignore
@@ -116,7 +116,7 @@ class AsyncAPIDoc(AsyncAPIBase):
         else:
             ack = None
 
-        if payload_model is "NotProvided":
+        if payload_model == "NotProvided":
             payload = {"$ref": "#/components/schemas/NoSpec"}
         elif isinstance(payload_model, type(BaseModel)):
             payload_schema_name = payload_model.__name__ # type: ignore
