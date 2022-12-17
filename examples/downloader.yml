@@ -1,0 +1,131 @@
+asyncapi: 2.5.0
+channels:
+  /:
+    publish:
+      message:
+        oneOf:
+        - $ref: '#/components/messages/Download_File'
+    subscribe:
+      message:
+        oneOf: []
+    x-handlers:
+      disconnect: disconnect
+components:
+  messages:
+    Download_File:
+      description: '
+
+        Except request to download file from URL and save to server''s file system.
+        </br>
+
+        Requests are **not** executed immediately, but added to queue.
+
+        '
+      name: download_file
+      payload:
+        $ref: '#/components/schemas/DownloadFileRequest'
+        deprecated: false
+      x-ack:
+        definitions:
+          Data:
+            properties:
+              is_accepted:
+                default: true
+                title: Is Accepted
+                type: boolean
+            title: Data
+            type: object
+        description: Response model for download file
+        properties:
+          data:
+            $ref: '#/components/schemas/DownloadAccepted/definitions/Data'
+          error:
+            description: Error message if any
+            example: Invalid request
+            title: Error
+            type: string
+          success:
+            default: true
+            description: Success status
+            title: Success
+            type: boolean
+        required:
+        - data
+        title: DownloadAccepted
+        type: object
+  schemas:
+    DownloadAccepted:
+      definitions:
+        Data:
+          properties:
+            is_accepted:
+              default: true
+              title: Is Accepted
+              type: boolean
+          title: Data
+          type: object
+      description: Response model for download file
+      properties:
+        data:
+          $ref: '#/components/schemas/DownloadAccepted/definitions/Data'
+        error:
+          description: Error message if any
+          example: Invalid request
+          title: Error
+          type: string
+        success:
+          default: true
+          description: Success status
+          title: Success
+          type: boolean
+      required:
+      - data
+      title: DownloadAccepted
+      type: object
+    DownloadFileRequest:
+      description: Request model for download file
+      properties:
+        check_hash:
+          default: false
+          title: Check Hash
+          type: boolean
+        location:
+          description: Destination local to file system; should be an absolute path
+          example: /tmp/tree.jpg
+          format: path
+          title: Location
+          type: string
+        url:
+          description: URL to download
+          example: https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg
+          format: uri
+          maxLength: 65536
+          minLength: 1
+          title: Url
+          type: string
+      required:
+      - url
+      - location
+      title: DownloadFileRequest
+      type: object
+    NoSpec:
+      deprecated: false
+      description: Specification is not provided
+info:
+  description: 'Server downloader API
+
+    <br/> AsyncAPI currently does not support Socket.IO binding and Web Socket like
+    syntax used for now.
+
+    In order to add support for Socket.IO ACK value, AsyncAPI is extended with with
+    x-ack keyword.
+
+    This documentation should **NOT** be used for generating code due to these limitations.
+
+    '
+  title: Downloader API
+  version: 1.0.0
+servers:
+  DOWNLOADER_BACKEND:
+    protocol: socketio
+    url: http://localhost:5000

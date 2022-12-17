@@ -16,19 +16,20 @@ class ResponseValidationError(Exception):
 
 class AsyncAPISocketIO(SocketIO):
     """Inherits the :class:`flask_socketio.SocketIO` class.
-    Adds ability to validate with pydantic models.
+    Adds ability to validate with pydantic models and generate AsycnAPI spe.
 
     Example::
         socket = AsyncAPISocketIO(app, async_mode='threading', logger=True)
         class TokenModel(BaseModel):
             token: int
 
-        class RequestTokenModel(BaseModel):
-            type: "str"
+        class UserModel(BaseModel):
+            name: str
+            id: int
 
-        @socket.on('get_token', response_model=TokenModel, request_model=RequestTokenModel)
-        def get_token(message):
-            return {"token": 1234}
+        @socket.on('get_user', response_model=UserModel)
+        def get_user():
+            return {"name": Bob, "id": 123}
     """
 
     def __init__(
@@ -50,7 +51,6 @@ class AsyncAPISocketIO(SocketIO):
             app (Optional[Flask]): flask app
             validation (bool, optional): If True request and response will be validated. Defaults to True.
             generate_docs (bool, optional): If True AsyncAPI specs will be generated. Defaults to False.
-            doc_template (Optional[str], optional): AsyncAPI YMAL template. Defaults to None.
             version (str, optional): AsyncAPI version. Defaults to "1.0.0".
             title (str, optional): AsyncAPI title. Defaults to "Demo Chat API".
             description (str, optional): AsyncAPI description. Defaults to "Demo Chat API".
@@ -155,7 +155,8 @@ class AsyncAPISocketIO(SocketIO):
                     request = kwargs.get("request")
                 if request:
                     try:
-                        if self.validate and request_model and isinstance(request_model, type(BaseModel)):
+                        if self.validate and request_model and \
+                            isinstance(request_model, type(BaseModel)):
                             request_model.validate(request) # type: ignore
                     except ValidationError as e:
                         logger.error(f"ValidationError for incoming request: {e}")
@@ -163,7 +164,8 @@ class AsyncAPISocketIO(SocketIO):
 
                     response = handler(*args, **kwargs)
                     try:
-                        if self.validate and response_model and isinstance(response_model, type(BaseModel)):
+                        if self.validate and response_model and \
+                            isinstance(response_model, type(BaseModel)):
                             response_model.validate(response) # type: ignore
                     except ValidationError as e:
                         logger.error(f"ValidationError for outgoing response: {e}")
