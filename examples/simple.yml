@@ -1,0 +1,90 @@
+asyncapi: 2.5.0
+channels:
+  /:
+    publish:
+      message:
+        oneOf:
+        - $ref: '#/components/messages/User_Sign_Up'
+    subscribe:
+      message:
+        oneOf: []
+    x-handlers:
+      disconnect: disconnect
+components:
+  messages:
+    User_Sign_Up:
+      description: User sign up
+      name: user_sign_up
+      payload:
+        $ref: '#/components/schemas/UserSignUpRequest'
+        deprecated: false
+      x-ack:
+        description: Response model for user sign up
+        properties:
+          error:
+            description: Error message if any
+            example: Invalid request
+            title: Error
+            type: string
+          success:
+            default: true
+            description: Success status
+            title: Success
+            type: boolean
+        title: UserSignUpResponse
+        type: object
+  schemas:
+    NoSpec:
+      deprecated: false
+      description: Specification is not provided
+    UserSignUpRequest:
+      description: Request model for user sign up
+      properties:
+        email:
+          description: User email
+          example: bob@gmail.com
+          title: Email
+          type: string
+        password:
+          description: User password
+          example: '123456'
+          title: Password
+          type: string
+      required:
+      - email
+      - password
+      title: UserSignUpRequest
+      type: object
+    UserSignUpResponse:
+      description: Response model for user sign up
+      properties:
+        error:
+          description: Error message if any
+          example: Invalid request
+          title: Error
+          type: string
+        success:
+          default: true
+          description: Success status
+          title: Success
+          type: boolean
+      title: UserSignUpResponse
+      type: object
+info:
+  description: 'Demo Server
+
+    <br/> AsyncAPI currently does not support Socket.IO binding and Web Socket like
+    syntax used for now.
+
+    In order to add support for Socket.IO ACK value, AsyncAPI is extended with with
+    x-ack keyword.
+
+    This documentation should **NOT** be used for generating code due to these limitations.
+
+    '
+  title: Demo
+  version: 1.0.0
+servers:
+  DEMO_SIO:
+    protocol: socketio
+    url: http://localhost:5000

@@ -13,7 +13,7 @@ def test_validate_asycnapi_doc():
     with open(path, "w") as f:
         f.write(doc_str)
     # run and check external process asyncapi-cli examples/downloader.yml
-    check_call(["asyncapi-cli", FILE_NAME], cwd=pathlib.Path(__file__).parent)
+    check_call(["asyncapi", "validate", FILE_NAME], cwd=pathlib.Path(__file__).parent)
 
 # TODO:
 # - [ ] check docstring used as description in AsyncAPI spec
