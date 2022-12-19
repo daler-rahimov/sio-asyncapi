@@ -43,6 +43,7 @@ components:
         email:
           description: User email
           example: bob@gmail.com
+          format: email
           title: Email
           type: string
         password:

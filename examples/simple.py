@@ -1,6 +1,6 @@
 from flask import Flask
 from sio_asyncapi import AsyncAPISocketIO, ResponseValidationError, RequestValidationError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 import logging
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ socketio = AsyncAPISocketIO(
 
 class UserSignUpRequest(BaseModel):
     """Request model for user sign up"""
-    email: str = Field(..., description="User email", example="bob@gmail.com")
+    email: EmailStr = Field(..., description="User email", example="bob@gmail.com")
     password: str = Field(..., description="User password", example="123456")
 
 
