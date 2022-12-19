@@ -18,3 +18,12 @@ repos:
     hooks:
       - id: check-yaml
       - id: check-json
+
+  # https://github.com/zakhenry/embedme
+  - repo: local
+    hooks:
+      - id: embed-code-to-readme
+        name: embed-code-to-readme
+        language: system
+        entry: npx embedme README.md
+        always_run: true
