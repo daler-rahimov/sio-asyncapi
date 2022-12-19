@@ -22,7 +22,8 @@ SIO-AsyncAPI
 
 SIO-AsyncAPI is a Python library built on the top of [Flask-SocketIO](https://flask-socketio.readthedocs.io/) and driven by [AsyncAPI](https://www.asyncapi.com/). It allows you to generate an AsyncAPI specification from your SocketIO server and validate messages against it.
 
-Similar to FastAPI, SIO-AsyncAPI allows you to define your SocketIO server using Python type annotations and Pydantic models. It also provides a way to generate an AsyncAPI specification from your SocketIO server. It's built on top of Flask-SocketIO and all unit tests of Flask-SocketIO are tested against SIO-AsyncAPI.
+Similar to FastAPI, SIO-AsyncAPI allows you to define your SocketIO server using Python type annotations and Pydantic models. It also provides a way to generate an AsyncAPI specification from your SocketIO server.
+
 
 ## Installation
 
@@ -55,3 +56,22 @@ https://github.com/daler-rahimov/sio-asyncapi/blob/c044e9600d7a87978f4048f5fc98d
 
 Rendered version of the above AsyncAPI specification:
 ![](doc/assets/20221218231640.png)
+
+## Converting from Flask-SocketIO to SIO-AsyncAPI
+SIO-AsyncAPI is built on top of Flask-SocketIO and all unit tests of Flask-SocketIO are tested against SIO-AsyncAPI. If you converting your SocketIO server from Flask-SocketIO to SIO-AsyncAPI, you can be sure that your SocketIO server will work as expected. When converting your SocketIO server from Flask-SocketIO to SIO-AsyncAPI, it's as simple as changing the import statement:
+
+```python
+# instead of `from flask_socketio import SocketIO`
+from sio_asyncapi import AsyncAPISocketIO as SocketIO
+...
+# There are additional arguments that you can pass to the constructor of AsyncAPISocketIO
+socketio = SocketIO(app)
+...
+```
+
+## Missing Features
+SIO-AsyncAPI is still in its early stages and there are some features that are not yet implemented. If you are interested in contributing to SIO-AsyncAPI any contribution is welcome. Here is the list of missing features:
+
+- [ ] Support of AsycnAPI documentation and validation for `emit` messages
+- [ ] Support of Flask-SocketIO `namespaces` and `rooms`
+- [ ] Authentication and security auto documentation
