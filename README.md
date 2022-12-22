@@ -104,7 +104,7 @@ if __name__ == '__main__':
 ```
 
 Here is how validation error looks like in FireCamp:
-![](doc/assets/20221219000309.png)
+![](https://github.com/daler-rahimov/sio-asyncapi/blob/master/doc/assets/20221219000309.png?raw=true)
 
 In order to get the AsyncAPI specification from your SocketIO server instead of running the server, you can do the following:
 ```python
@@ -216,7 +216,7 @@ servers:
 ```
 
 Rendered version of the above AsyncAPI specification:
-![](doc/assets/20221219000543.png)
+![](https://github.com/daler-rahimov/sio-asyncapi/blob/master/doc/assets/20221219000543.png?raw=true)
 
 ## Converting from Flask-SocketIO to SIO-AsyncAPI
 SIO-AsyncAPI is built on top of Flask-SocketIO and all unit tests of Flask-SocketIO are tested against SIO-AsyncAPI. If you converting your SocketIO server from Flask-SocketIO to SIO-AsyncAPI, you can be sure that your SocketIO server will work as expected. When converting your SocketIO server from Flask-SocketIO to SIO-AsyncAPI, it's as simple as changing the import statement:
