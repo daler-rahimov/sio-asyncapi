@@ -8,10 +8,10 @@ repos:
         pass_filenames: false
         always_run: true
 
-  # - repo: https://github.com/necaris/pre-commit-pyright
-  #   rev: "1.1.53"
-  #   hooks:
-  #     - id: pyright
+  - repo: https://github.com/necaris/pre-commit-pyright
+    rev: "1.1.53"
+    hooks:
+      - id: pyright
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.0.0
