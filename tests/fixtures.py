@@ -2,7 +2,7 @@ import abc
 import logging
 import pathlib
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import pytest
 from flask import Flask
@@ -10,7 +10,7 @@ from flask_socketio import (SocketIOTestClient, emit)
 from loguru import logger
 from pydantic import AnyUrl, BaseModel, Field
 
-from sio_asyncapi import (RequestValidationError, ResponseValidationError)
+from sio_asyncapi import (RequestValidationError, ResponseValidationError, EmitValidationError)
 from sio_asyncapi.application import AsyncAPISocketIO as SocketIO
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ class DownloadFileRequest(BaseModel):
 
 class DownloaderQueueEmitModel(BaseModel):
     """Emit model for current list"""
-    downloader_queue: list[AnyUrl] = Field(..., description="List of URLs to download",
+    downloader_queue: List[AnyUrl] = Field(..., description="List of URLs to download",
                         example="[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]")
 
 downloader_queue = []
@@ -79,8 +79,17 @@ def get_download_list() -> None:
     """
     r_data = {"downloader_queue": [
         "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg",
-        "//cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__481.jpg", ]}
+        "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg", ]}
     socketio.emit('current_list', r_data)
+
+
+@socketio.doc_emit('current_list_fail', DownloaderQueueEmitModel)
+@socketio.on('get_download_list_fail', get_from_typehint=True)
+def get_download_list_fail() -> None:
+    """
+    Get current list of files to download
+    """
+    socketio.emit('current_list', {"downloader_queue": [ "WRONG_URL",]})
 
 @socketio.on('download_file', get_from_typehint=True)
 def download_file(request: DownloadFileRequest) -> DownloadAccepted:
@@ -111,7 +120,10 @@ def default_error_handler(e: Exception):
     if isinstance(e, RequestValidationError):
         logger.error(f"Request validation error: {e}")
         # SocketIOTestClient doesn't support acknowledgements value return so emitting instead
-        emit("error",SocketErrorResponse(error=str(e)).json())
+        emit("error",str(e))
+    elif isinstance(e, EmitValidationError):
+        logger.error(f"Emit validation error: {e}")
+        emit("error",str(e))
     elif isinstance(e, ResponseValidationError):
         logger.critical(f"Response validation error: {e}")
         raise e
