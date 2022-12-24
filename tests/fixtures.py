@@ -61,11 +61,27 @@ class DownloadFileRequest(BaseModel):
                            example="/tmp/tree.jpg")
     check_hash: Optional[bool] = False
 
+class DownloaderQueueEmitModel(BaseModel):
+    """Emit model for current list"""
+    downloader_queue: list[AnyUrl] = Field(..., description="List of URLs to download",
+                        example="[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]")
 
 downloader_queue = []
 
 
 # Handlers
+@socketio.doc_emit('current_list', DownloaderQueueEmitModel,
+                   "Current list of files to download")
+@socketio.on('get_download_list', get_from_typehint=True)
+def get_download_list() -> None:
+    """
+    Get current list of files to download
+    """
+    r_data = {"downloader_queue": [
+        "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg",
+        "//cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__481.jpg", ]}
+    socketio.emit('current_list', r_data)
+
 @socketio.on('download_file', get_from_typehint=True)
 def download_file(request: DownloadFileRequest) -> DownloadAccepted:
     """

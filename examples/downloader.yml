@@ -5,9 +5,11 @@ channels:
       message:
         oneOf:
         - $ref: '#/components/messages/Download_File'
+        - $ref: '#/components/messages/Get_Download_List'
     subscribe:
       message:
-        oneOf: []
+        oneOf:
+        - $ref: '#/components/messages/current_list'
     x-handlers:
       disconnect: disconnect
 components:
@@ -53,6 +55,19 @@ components:
         - data
         title: DownloadAccepted
         type: object
+    Get_Download_List:
+      description: '
+
+        Get current list of files to download
+
+        '
+      name: get_download_list
+    current_list:
+      description: Current list of files to download
+      name: current_list
+      payload:
+        $ref: '#/components/schemas/DownloaderQueueEmitModel'
+        deprecated: false
   schemas:
     DownloadAccepted:
       definitions:
@@ -107,6 +122,23 @@ components:
       - url
       - location
       title: DownloadFileRequest
+      type: object
+    DownloaderQueueEmitModel:
+      description: Emit model for current list
+      properties:
+        downloader_queue:
+          description: List of URLs to download
+          example: '[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]'
+          items:
+            format: uri
+            maxLength: 65536
+            minLength: 1
+            type: string
+          title: Downloader Queue
+          type: array
+      required:
+      - downloader_queue
+      title: DownloaderQueueEmitModel
       type: object
     NoSpec:
       deprecated: false

@@ -1,0 +1,10 @@
+{
+  "include": [ "." ],
+  "typeCheckingMode": "basic",
+
+  "ignore": [
+    "examples",
+    "src/sio_asyncapi/asyncapi/models",
+    "tests/test_socketio.py"
+  ]
+}
