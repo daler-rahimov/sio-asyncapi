@@ -101,7 +101,6 @@ class AsyncAPIDoc(AsyncAPIBase):
             ack_data_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
             payload_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
         ) -> None:
-        # global asyncapi_doc
         if message_name is None:
             message_name = name.title()
 
@@ -153,42 +152,43 @@ class AsyncAPIDoc(AsyncAPIBase):
         if self.channels and self.channels["/"] and self.channels["/"].publish and self.channels["/"].publish.message:
             self.channels["/"].publish.message.__dict__["oneOf"].append(one_of)
 
+    def add_new_sender(
+            self,
+            event: str,
+            payload_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
+            description: Optional[str] = None,
+        ) -> None:
+        """Generate new sender documentation for AsyncAPI."""
+        if payload_model == "NotProvided":
+            payload = {"$ref": "#/components/schemas/NoSpec"}
+        elif isinstance(payload_model, type(BaseModel)):
+            payload_schema_name = payload_model.__name__ # type: ignore
+            payload_schema = payload_model.schema() # type: ignore
+            payload = {"$ref": f"#/components/schemas/{payload_schema_name}"}
+            add_ref_prepath(payload_schema, f"/components/schemas/{payload_schema_name}") # type: ignore
+            self.components.schemas[payload_schema_name] = payload_schema # type: ignore
+        else:
+            payload = None
 
-# def add_new_sender(handler: Callable,
-#                 name: str,
-#                 message_name = None,
-#                 payload_model: Optional[Type[BaseModel]] = None) -> None:
-#     global asyncapi_doc
-#     if message_name is None:
-#         message_name = name.title()
+        # create new message
+        new_message = {
+            "name": event,
+            "description": description if description else "",
+            "payload": payload,
+        }
 
-#     # TODO: make sure schema name is unique
-#     if payload_model is not None:
-#         payload_schema_name = payload_model.__name__
-#         payload = {"payload": {"$ref": f"#/components/schemas/{payload_schema_name}"}}
-#         asyncapi_doc["components"]["schemas"][payload_schema_name] = payload_model.schema()
+        # remove multiple spaces so yaml dump does not try to escape them
+        if new_message["description"]:
+            # add single indent at the beginning if not present
+            if not new_message["description"].startswith(" "):
+                new_message["description"] = " " + new_message["description"]
+            new_message["description"] = textwrap.dedent(new_message["description"])
 
-#     # create new message
-#     new_message = {
-#         "name": name,
-#         "description": handler.__doc__,
-#     }
+        # add message to spec
+        if self.components and self.components.messages is not None:
+            self.components.messages[event] = Message.parse_obj(new_message)
 
-#     if payload_model is not None:
-#         new_message["payload"] = payload
-
-#     # add message to spec
-#     asyncapi_doc["components"]["messages"][message_name] = new_message
-
-#     # add to sub
-#     one_of = {"$ref": f"#/components/messages/{message_name}"}
-#     asyncapi_doc["channels"]["/"]["subscribe"]["message"]["oneOf"].append(one_of)
-
-
-# def get_json_str_doc() -> str:
-#     global asyncapi_doc
-#     return json.dumps(asyncapi_doc)
-
-# def get_yaml_str_doc() -> str:
-#     global asyncapi_doc
-#     return yaml.safe_dump(asyncapi_doc)
+        # add to pub
+        one_of = {"$ref": f"#/components/messages/{event}"}
+        if self.channels and self.channels["/"] and self.channels["/"].subscribe and self.channels["/"].subscribe.message:
+            self.channels["/"].subscribe.message.__dict__["oneOf"].append(one_of)

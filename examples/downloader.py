@@ -1,12 +1,14 @@
 import abc
-from loguru import logger
-from flask import Flask
-from sio_asyncapi import AsyncAPISocketIO, ResponseValidationError, RequestValidationError
-from pydantic import BaseModel, Field, AnyUrl
-from pydantic import BaseModel, Field, AnyUrl
-from typing import Optional
-from pathlib import Path
 import pathlib
+from pathlib import Path
+from typing import Optional
+
+from flask import Flask
+from loguru import logger
+from pydantic import AnyUrl, BaseModel, Field
+
+from sio_asyncapi import (AsyncAPISocketIO, EmitValidationError,
+                          RequestValidationError, ResponseValidationError)
 
 async_mode = None
 app = Flask(__name__)
@@ -58,9 +60,12 @@ class DownloadFileRequest(BaseModel):
                            example="/tmp/tree.jpg")
     check_hash: Optional[bool] = False
 
+class DownloaderQueueEmitModel(BaseModel):
+    """Emit model for current list"""
+    downloader_queue: list[AnyUrl] = Field(..., description="List of URLs to download",
+                        example="[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]")
 
 downloader_queue = []
-
 
 # Handlers
 @socketio.on('download_file', get_from_typehint=True)
@@ -83,6 +88,19 @@ def download_file(request: DownloadFileRequest) -> DownloadAccepted:
         return DownloadAccepted(data=DownloadAccepted.Data(is_accepted=True))
 
 
+@socketio.doc_emit('current_list', DownloaderQueueEmitModel,
+                   "Current list of files to download")
+@socketio.on('get_download_list', get_from_typehint=True)
+def get_download_list() -> None:
+    """
+    Get current list of files to download
+    """
+    r_data = {"downloader_queue": [
+        "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg",
+        "//cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__481.jpg", ]}
+    socketio.emit('current_list', r_data)
+
+
 @socketio.on_error_default
 def default_error_handler(e: Exception):
     """
@@ -94,6 +112,9 @@ def default_error_handler(e: Exception):
         return SocketErrorResponse(error=str(e)).json()
     elif isinstance(e, ResponseValidationError):
         logger.critical(f"Response validation error: {e}")
+        raise e
+    if isinstance(e, EmitValidationError):
+        logger.critical(f"Emit validation error: {e}")
         raise e
     else:
         logger.critical(f"Unknown error: {e}")

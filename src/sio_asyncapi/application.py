@@ -8,11 +8,24 @@ from pydantic import BaseModel, ValidationError
 
 from sio_asyncapi.asyncapi.docs import AsyncAPIDoc, NotProvidedType
 
-class RequestValidationError(Exception):
+class BaseValildationError(ValidationError):
+    @classmethod
+    def init_from_super(cls, parent: ValidationError) ->  "BaseValildationError":
+        """Initialize EmitValidationError from parent ValidationError"""
+        return cls(
+            errors=parent.raw_errors,
+            model=parent.model,
+        )
+
+class RequestValidationError(BaseValildationError):
     pass
 
-class ResponseValidationError(Exception):
+class ResponseValidationError(BaseValildationError):
     pass
+
+class EmitValidationError(BaseValildationError):
+    pass
+
 
 class AsyncAPISocketIO(SocketIO):
     """Inherits the :class:`flask_socketio.SocketIO` class.
@@ -68,7 +81,40 @@ class AsyncAPISocketIO(SocketIO):
                 server_name=server_name,
             )
         super().__init__(app=app, **kwargs)
+        self.emit_models: dict[str, Type[BaseModel]] = {}
 
+    def emit(self, event: str, *args, **kwargs):
+        """
+        Overrides emit in order to validate data with pydantic models
+
+        for more info refer to :meth:`flask_socketio.SocketIO.emit`
+        """
+        if self.validate:
+            model = self.emit_models.get(event)
+            if model is not None:
+                try:
+                    model.validate(args[0])
+                except ValidationError as e:
+                    logger.error(f"Error validating emit '{event}': {e}")
+                    raise EmitValidationError.init_from_super(e)
+        return super().emit(event, *args, **kwargs)
+
+    def doc_emit(self, event: str, model: Type[BaseModel], discription: str = ""):
+        """
+        Decorator to register/document a SocketIO emit event. This will be
+        used to generate AsyncAPI specs and validate emits calls.
+
+        Args:
+            event (str): event name
+            model (Type[BaseModel]): pydantic model
+        """
+        def decorator(func):
+            if self.emit_models.get(event):
+                raise ValueError(f"Event {event} already registered")
+            self.emit_models[event] = model
+            self.asyncapi_doc.add_new_sender(event, model, discription)
+            return func
+        return decorator
 
     def on(
             self,
@@ -160,7 +206,7 @@ class AsyncAPISocketIO(SocketIO):
                             request_model.validate(request) # type: ignore
                     except ValidationError as e:
                         logger.error(f"ValidationError for incoming request: {e}")
-                        raise RequestValidationError(e)
+                        raise RequestValidationError.init_from_super(e)
 
                     response = handler(*args, **kwargs)
                     try:
@@ -169,7 +215,7 @@ class AsyncAPISocketIO(SocketIO):
                             response_model.validate(response) # type: ignore
                     except ValidationError as e:
                         logger.error(f"ValidationError for outgoing response: {e}")
-                        raise ResponseValidationError(e)
+                        raise ResponseValidationError.init_from_super(e)
 
                     if isinstance(response, BaseModel):
                         return response.json()
