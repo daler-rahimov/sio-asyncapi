@@ -1,7 +1,7 @@
 import abc
 import pathlib
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from flask import Flask
 from loguru import logger
@@ -62,7 +62,7 @@ class DownloadFileRequest(BaseModel):
 
 class DownloaderQueueEmitModel(BaseModel):
     """Emit model for current list"""
-    downloader_queue: list[AnyUrl] = Field(..., description="List of URLs to download",
+    downloader_queue: List[AnyUrl] = Field(..., description="List of URLs to download",
                         example="[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]")
 
 downloader_queue = []
