@@ -1,7 +1,7 @@
 from typing import Dict
 
 
-def insert_prepath(prepath: str, path) -> str:
+def insert_prepath(prepath: str, path: str) -> str:
     """
     Takes a path and inserts a prepath after the first #.
     """
