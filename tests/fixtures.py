@@ -98,7 +98,6 @@ def download_file(request: DownloadFileRequest) -> DownloadAccepted:
     Requests are **not** executed immediately, but added to queue.
     """
     # check if file exists
-    request = DownloadFileRequest.parse_obj(request)
     if pathlib.Path(request.location).exists():
         return DownloadAccepted(
             success=False,

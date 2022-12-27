@@ -196,9 +196,17 @@ class AsyncAPISocketIO(SocketIO):
         def decorator(handler: Callable):
 
             def wrapper(*args, **kwargs):
-                request = args[0] if len(args) > 0 else None
+                did_request_came_as_arg = False
+                request = None
+                # check if request is in args or kwargs
+                if len(args) > 0:
+                    did_request_came_as_arg = True
+                    request = args[0]
                 if not request:
+                    did_request_came_as_arg = False
                     request = kwargs.get("request")
+
+                # if there is a request in args or kwargs, validate it
                 if request:
                     try:
                         if self.validate and request_model and \
@@ -208,7 +216,17 @@ class AsyncAPISocketIO(SocketIO):
                         logger.error(f"ValidationError for incoming request: {e}")
                         raise RequestValidationError.init_from_super(e)
 
-                    response = handler(*args, **kwargs)
+                    # convert request to pydantic model if request_model is provided
+                    if request_model and isinstance(request_model, type(BaseModel)):
+                        request = request_model.parse_obj(request) # type: ignore
+                        if did_request_came_as_arg:
+                            args = (request, *args[1:])
+                        else:
+                            kwargs["request"] = request
+
+                # call handler with converted request and validate response
+                response = handler(*args, **kwargs)
+                if response:
                     try:
                         if self.validate and response_model and \
                             isinstance(response_model, type(BaseModel)):
@@ -217,12 +235,11 @@ class AsyncAPISocketIO(SocketIO):
                         logger.error(f"ValidationError for outgoing response: {e}")
                         raise ResponseValidationError.init_from_super(e)
 
-                    if isinstance(response, BaseModel):
-                        return response.json()
-                    else:
-                        return response
+                # if response is a pydantic model, convert it to json
+                if isinstance(response, BaseModel):
+                    return response.json()
                 else:
-                    return handler(*args, **kwargs)
+                    return response
 
             return wrapper
         return decorator
