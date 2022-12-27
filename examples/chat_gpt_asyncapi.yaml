@@ -1,0 +1,171 @@
+asyncapi: 2.5.0
+channels:
+  /:
+    publish:
+      message:
+        oneOf:
+        - $ref: '#/components/messages/Create_Game'
+        - $ref: '#/components/messages/Make_Move'
+    subscribe:
+      message:
+        oneOf:
+        - $ref: '#/components/messages/game_created'
+        - $ref: '#/components/messages/move_made'
+        - $ref: '#/components/messages/game_drawn'
+        - $ref: '#/components/messages/game_won'
+    x-handlers:
+      disconnect: disconnect
+components:
+  messages:
+    Create_Game:
+      description: ''
+      name: create_game
+    Make_Move:
+      description: ''
+      name: make_move
+      payload:
+        $ref: '#/components/schemas/MakeMoveData'
+        deprecated: false
+      x-ack:
+        properties:
+          error:
+            description: The error message
+            example: Invalid move
+            title: Error
+            type: string
+        title: MakeMoveAckData
+        type: object
+    game_created:
+      description: ''
+      name: game_created
+      payload:
+        $ref: '#/components/schemas/GameCreatedData'
+        deprecated: false
+    game_drawn:
+      description: ''
+      name: game_drawn
+      payload:
+        $ref: '#/components/schemas/GameDrawnData'
+        deprecated: false
+    game_won:
+      description: ''
+      name: game_won
+      payload:
+        $ref: '#/components/schemas/GameWonData'
+        deprecated: false
+    move_made:
+      description: ''
+      name: move_made
+      payload:
+        $ref: '#/components/schemas/MoveMadeData'
+        deprecated: false
+  schemas:
+    GameCreatedData:
+      properties:
+        game_id:
+          description: The game id
+          example: 1
+          title: Game Id
+          type: integer
+      required:
+      - game_id
+      title: GameCreatedData
+      type: object
+    GameDrawnData:
+      properties: {}
+      title: GameDrawnData
+      type: object
+    GameWonData:
+      properties:
+        winner:
+          description: The winner
+          example: X
+          title: Winner
+          type: string
+      required:
+      - winner
+      title: GameWonData
+      type: object
+    MakeMoveAckData:
+      properties:
+        error:
+          description: The error message
+          example: Invalid move
+          title: Error
+          type: string
+      title: MakeMoveAckData
+      type: object
+    MakeMoveData:
+      properties:
+        game_id:
+          description: The game id
+          example: 1
+          title: Game Id
+          type: integer
+        x:
+          description: The x coordinate
+          example: 0
+          title: X
+          type: integer
+        y:
+          description: The y coordinate
+          example: 0
+          title: Y
+          type: integer
+      required:
+      - game_id
+      - x
+      - y
+      title: MakeMoveData
+      type: object
+    MoveMadeData:
+      properties:
+        board:
+          description: The game board
+          example:
+          - - X
+            - O
+            - ''
+          - - ''
+            - X
+            - ''
+          - - ''
+            - ''
+            - O
+          items:
+            items:
+              type: string
+            type: array
+          title: Board
+          type: array
+        turn:
+          description: The current turn
+          example: X
+          title: Turn
+          type: string
+      required:
+      - board
+      - turn
+      title: MoveMadeData
+      type: object
+    NoSpec:
+      deprecated: false
+      description: Specification is not provided
+info:
+  description: 'Tick-Tack-Toe Game API
+
+    <br/> AsyncAPI currently does not support Socket.IO binding and Web Socket like
+    syntax used for now.
+
+    In order to add support for Socket.IO ACK value, AsyncAPI is extended with with
+    x-ack keyword.
+
+    This documentation should **NOT** be used for generating code due to these limitations.
+
+    '
+  title: Tick-Tack-Toe API
+  version: 1.0.0
+servers:
+  TICK_TACK_TOE_BACKEND:
+    protocol: socketio
+    url: http://localhost:5000
