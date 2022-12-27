@@ -230,7 +230,7 @@ socketio = SocketIO(app)
 ...
 ```
 
-## Credits and Acknowledgements
+## Acknowledgements
 Most of the implementation follows research done by Dimitrios Dedoussis (https://www.asyncapi.com/blog/socketio-part2) and uses some Pydantic models from [here](https://github.com/albertnadal/asyncapi-schema-pydantic)
 
 ## Missing Features
