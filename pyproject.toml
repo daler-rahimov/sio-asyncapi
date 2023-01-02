@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "sio_asyncapi"
-version = "0.2.0"
+version = "0.3.0"
 description = "Flask SocketIO with auto-generate Asyncapi documentation"
 authors = ["Daler Rahimov <daler.edu@gmail.com>"]
 license = "MIT"
