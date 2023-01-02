@@ -48,7 +48,7 @@ class AsyncAPISocketIO(SocketIO):
     def __init__(
         self,
         app: Optional[Flask] = None,
-        /,
+        *args,
         validate: bool = False,
         generate_docs: bool = True,
         version: str = "1.0.0",
@@ -80,7 +80,7 @@ class AsyncAPISocketIO(SocketIO):
                 server_url=server_url,
                 server_name=server_name,
             )
-        super().__init__(app=app, **kwargs)
+        super().__init__(app=app, *args, **kwargs)
         self.emit_models: dict[str, Type[BaseModel]] = {}
 
     def emit(self, event: str, *args, **kwargs):
