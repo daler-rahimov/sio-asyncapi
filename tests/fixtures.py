@@ -107,7 +107,10 @@ def download_file(request: DownloadFileRequest) -> DownloadAccepted:
     else:
         # add to queue
         downloader_queue.append(request)
-        return DownloadAccepted(data=DownloadAccepted.Data(is_accepted=True))
+        return DownloadAccepted(
+            success=True,
+            data=DownloadAccepted.Data(is_accepted=True),
+            error=None)
 
 
 @socketio.on_error_default

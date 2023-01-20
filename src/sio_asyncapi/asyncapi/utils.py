@@ -8,7 +8,7 @@ def insert_prepath(prepath: str, path: str) -> str:
     return path.replace('#', "#" + prepath, 1)
 
 
-def add_ref_prepath(dict_obj: Dict, prepath: str):
+def add_ref_prepath(dict_obj: Dict, prepath: str) -> None:
     """
     Takes a dict with nested lists and dicts,
     and adds a prepath to all $ref fields.
