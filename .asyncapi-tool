@@ -11,4 +11,5 @@ filters:
   - Flask
   categories:
   - code-first
+  - api
   hasCommercial: false
