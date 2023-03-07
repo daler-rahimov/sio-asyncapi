@@ -8,8 +8,7 @@ filters:
   language: Python
   technology:
   - Socket.IO
-  - Flask-SocketIO
+  - Flask
   categories:
   - code-first
-  - api
   hasCommercial: false
