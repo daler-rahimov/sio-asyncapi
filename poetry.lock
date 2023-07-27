@@ -273,18 +273,21 @@ dotenv = ["python-dotenv"]
 
 [[package]]
 name = "flask-socketio"
-version = "5.3.2"
+version = "5.3.5"
 description = "Socket.IO integration for Flask applications"
 optional = false
 python-versions = ">=3.6"
 files = [
-    {file = "Flask-SocketIO-5.3.2.tar.gz", hash = "sha256:11d1d78b8805cda351b27828a110b88c74a573be62b07f7f5a519fb67fae0a58"},
-    {file = "Flask_SocketIO-5.3.2-py3-none-any.whl", hash = "sha256:04093e3ca144467f9731c376796aff105d182ac4cccfcb056d05d567a675f306"},
+    {file = "Flask-SocketIO-5.3.5.tar.gz", hash = "sha256:5f01158d10db71aa78c969b631ce3b9148b47ab0de1995158f9577f85b004d25"},
+    {file = "Flask_SocketIO-5.3.5-py3-none-any.whl", hash = "sha256:04d42f2b7c2c3bdfea83b62e53f999374c573c698eddb53c468fca2bf75c1d3c"},
 ]
 
 [package.dependencies]
 Flask = ">=0.9"
 python-socketio = ">=5.0.2"
+
+[package.extras]
+docs = ["sphinx"]
 
 [[package]]
 name = "hypothesis"
