@@ -22,7 +22,7 @@ pytest-cov = "^4.0.0"
 autopep8 = "^2.0.0"
 codespell = "^2.2.2"
 redis = ">=4.4,<6.0"
-pylint = "^2.15.8"
+pylint = ">=2.15.8,<4.0.0"
 hypothesis-auto = "^1.1.4"
 
 [build-system]
