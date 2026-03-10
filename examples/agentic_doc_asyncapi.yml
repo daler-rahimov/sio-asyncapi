@@ -1,0 +1,113 @@
+asyncapi: 2.5.0
+channels:
+  /:
+    publish:
+      message:
+        oneOf:
+        - $ref: '#/components/messages/Ask_Assistant'
+    subscribe:
+      message:
+        oneOf:
+        - $ref: '#/components/messages/assistant_reply'
+    x-handlers:
+      disconnect: disconnect
+components:
+  messages:
+    Ask_Assistant:
+      description: Accept a user prompt and start asynchronous assistant processing.
+      name: ask_assistant
+      payload:
+        $ref: '#/components/schemas/AskAssistantRequest'
+        deprecated: false
+      x-ack:
+        description: Ack model returned immediately after a prompt is accepted.
+        properties:
+          accepted:
+            default: true
+            description: Whether the prompt was accepted
+            title: Accepted
+            type: boolean
+          request_id:
+            description: Server-generated request identifier
+            title: Request Id
+            type: string
+        required:
+        - request_id
+        title: AskAssistantResponse
+        type: object
+    assistant_reply:
+      description: Server push event sent when the assistant has produced a reply.
+      name: assistant_reply
+      payload:
+        $ref: '#/components/schemas/AssistantReply'
+        deprecated: false
+  schemas:
+    AskAssistantRequest:
+      description: Request model for sending a user prompt to the assistant.
+      properties:
+        conversation_id:
+          description: Conversation identifier for multi-turn chats
+          example: chat-123
+          title: Conversation Id
+          type: string
+        prompt:
+          description: Natural-language prompt from the user
+          title: Prompt
+          type: string
+      required:
+      - prompt
+      title: AskAssistantRequest
+      type: object
+    AskAssistantResponse:
+      description: Ack model returned immediately after a prompt is accepted.
+      properties:
+        accepted:
+          default: true
+          description: Whether the prompt was accepted
+          title: Accepted
+          type: boolean
+        request_id:
+          description: Server-generated request identifier
+          title: Request Id
+          type: string
+      required:
+      - request_id
+      title: AskAssistantResponse
+      type: object
+    AssistantReply:
+      description: Server push event containing the assistant's generated reply.
+      properties:
+        message:
+          description: Generated reply text
+          title: Message
+          type: string
+        request_id:
+          description: Identifier of the related request
+          title: Request Id
+          type: string
+      required:
+      - request_id
+      - message
+      title: AssistantReply
+      type: object
+    NoSpec:
+      deprecated: false
+      description: Specification is not provided
+info:
+  description: 'Demo server that exports both AsyncAPI and agent-friendly schemas.
+
+    <br/> AsyncAPI currently does not support Socket.IO binding and Web Socket like
+    syntax used for now.
+
+    In order to add support for Socket.IO ACK value, AsyncAPI is extended with with
+    x-ack keyword.
+
+    This documentation should **NOT** be used for generating code due to these limitations.
+
+    '
+  title: Agent Export Demo
+  version: 1.0.0
+servers:
+  AGENT_EXPORT_DEMO:
+    protocol: socketio
+    url: http://localhost:5000

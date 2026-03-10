@@ -108,6 +108,8 @@ Here is how validation error looks like in FireCamp:
 ![](https://github.com/daler-rahimov/sio-asyncapi/blob/master/doc/assets/20221219000309.png?raw=true)
 
 In order to get the AsyncAPI specification from your SocketIO server instead of running the server, you can do the following:
+You can also get a compact agent-friendly event catalog with `socketio.get_agent_schema()` or `socketio.get_agent_schema_json()`.
+See `examples/agentic_doc_example.py` for a complete example that writes both exports to disk.
 ```python
 import pathlib
 if __name__ == "__main__":

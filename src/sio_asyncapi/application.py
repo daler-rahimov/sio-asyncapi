@@ -208,6 +208,14 @@ class AsyncAPISocketIO(SocketIO):
 
         return decorator
 
+    def get_agent_schema(self):
+        """Return the compact agent-friendly event catalog."""
+        return self.asyncapi_doc.get_agent_schema()
+
+    def get_agent_schema_json(self) -> str:
+        """Return the compact agent-friendly event catalog as JSON."""
+        return self.asyncapi_doc.get_agent_schema_json()
+
     def _handle_all(
         self,
         response_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,

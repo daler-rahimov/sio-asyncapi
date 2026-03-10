@@ -1,3 +1,4 @@
+import json
 import pathlib
 import shutil
 from subprocess import check_call
@@ -163,3 +164,43 @@ def test_docs_are_namespace_aware_for_same_event_name():
     assert sio.asyncapi_doc.channels["/test"].subscribe.message.__dict__["oneOf"] == [
         {"$ref": "#/components/messages/Test_status"}
     ]
+
+
+def test_agent_schema_exposes_compact_event_catalog():
+    agent_schema = socketio.get_agent_schema()
+
+    assert agent_schema["format"] == "sio-asyncapi-agent-schema"
+    assert agent_schema["version"] == "1.0"
+    assert agent_schema["info"]["title"] == "Downloader API"
+
+    by_name = {event["name"]: event for event in agent_schema["events"]}
+
+    download_event = by_name["download_file"]
+    assert download_event["namespace"] == "/"
+    assert download_event["direction"] == "client_to_server"
+    assert download_event["message_component"] == "Download_File"
+    assert download_event["input_schema_component"] == "DownloadFileRequest"
+    assert download_event["ack_schema_component"] == "DownloadAccepted"
+    assert download_event["input_schema"]["title"] == "DownloadFileRequest"
+    assert download_event["ack_schema"]["title"] == "DownloadAccepted"
+
+    current_list_event = by_name["current_list"]
+    assert current_list_event["direction"] == "server_to_client"
+    assert current_list_event["output_schema_component"] == "DownloaderQueueEmitModel"
+    assert current_list_event["output_schema"]["title"] == "DownloaderQueueEmitModel"
+
+
+def test_agent_schema_resolves_internal_schema_refs():
+    agent_schema = socketio.get_agent_schema()
+    by_name = {event["name"]: event for event in agent_schema["events"]}
+
+    ack_schema = by_name["download_file"]["ack_schema"]
+    assert ack_schema["properties"]["data"]["title"] == "Data"
+    assert ack_schema["properties"]["data"]["x-component-ref"].endswith("/Data")
+
+
+def test_agent_schema_json_matches_dict_export():
+    agent_schema = socketio.get_agent_schema()
+    agent_schema_json = socketio.get_agent_schema_json()
+
+    assert json.loads(agent_schema_json) == agent_schema
