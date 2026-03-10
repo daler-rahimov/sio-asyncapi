@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, Extra, constr
+from sio_asyncapi._pydantic import BaseModel, Extra, constr
 
 from .reference import Reference
 from .server_bindings import ServerBindings

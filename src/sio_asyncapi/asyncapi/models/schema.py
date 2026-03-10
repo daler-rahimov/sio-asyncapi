@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel
+from sio_asyncapi._pydantic import BaseModel
 
 from .json_schema import JsonSchemaObject
 from .external_documentation import ExternalDocumentation

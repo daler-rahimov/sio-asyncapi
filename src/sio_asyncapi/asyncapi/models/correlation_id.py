@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import BaseModel, Extra
+from sio_asyncapi._pydantic import BaseModel, Extra
 
 
 class CorrelationId(BaseModel):

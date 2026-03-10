@@ -1,6 +1,6 @@
 from typing import Dict, Optional, Union
 
-from pydantic import BaseModel, Extra, constr
+from sio_asyncapi._pydantic import BaseModel, Extra, constr
 
 from .parameter import Parameter
 from .reference import Reference

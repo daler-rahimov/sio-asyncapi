@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Extra, Field
+from sio_asyncapi._pydantic import BaseModel, Extra, Field
 
 
 class Reference(BaseModel):

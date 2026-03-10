@@ -1,6 +1,6 @@
 from typing import Optional
 from enum import Enum
-from pydantic import BaseModel, Extra
+from sio_asyncapi._pydantic import BaseModel, Extra
 
 from .schema import Schema
 

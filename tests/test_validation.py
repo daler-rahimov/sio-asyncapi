@@ -17,7 +17,7 @@ def test_request_validation(client: SocketIOTestClient):
     }
     client.emit('download_file', data)
     assert len(downloader_queue) == 1
-    assert downloader_queue[0].url == "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg"
+    assert str(downloader_queue[0].url) == "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg"
     assert downloader_queue[0].check_hash == False
 
 

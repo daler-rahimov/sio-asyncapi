@@ -46,7 +46,7 @@ def default_error_handler(e: Exception):
     """
     if isinstance(e, RequestValidationError):
         logger.error(f"Request validation error: {e}")
-        return UserSignUpResponse(error=str(e), success=False).json()
+        return {"success": False, "error": str(e)}
     elif isinstance(e, ResponseValidationError):
         logger.critical(f"Response validation error: {e}")
         raise e

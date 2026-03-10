@@ -5,6 +5,7 @@ from subprocess import check_call
 from flask import Flask
 from pydantic import BaseModel
 
+from sio_asyncapi._compat import model_dump
 from sio_asyncapi.asyncapi.docs import AsyncAPIDoc
 from sio_asyncapi.application import AsyncAPISocketIO
 
@@ -12,22 +13,26 @@ from .fixtures import socketio
 
 
 def get_doc_dict():
-    return socketio.asyncapi_doc.dict(by_alias=True, exclude_none=True)
+    return model_dump(socketio.asyncapi_doc, by_alias=True, exclude_none=True)
+
+
+def schema_has_type(schema: dict, expected_type: str) -> bool:
+    if schema.get("type") == expected_type:
+        return True
+    return any(option.get("type") == expected_type for option in schema.get("anyOf", []))
 
 
 def test_validate_asycnapi_doc():
     if shutil.which("asyncapi") is None:
         return
 
-    FILE_NAME = "tmp_test_doc.yml"
-    path = pathlib.Path(__file__).parent / FILE_NAME
+    file_name = "tmp_test_doc.yml"
+    path = pathlib.Path(__file__).parent / file_name
     doc_str = socketio.asyncapi_doc.get_yaml()
-    # replace version to 2.0.0 since asyncapi-cli doesn't support 2.5.0 yet
     doc_str = doc_str.replace("2.5.0", "2.0.0")
-    with open(path, "w") as f:
-        f.write(doc_str)
-    # run and check external process asyncapi-cli examples/downloader.yml
-    check_call(["asyncapi", "validate", FILE_NAME], cwd=pathlib.Path(__file__).parent)
+    with open(path, "w") as file:
+        file.write(doc_str)
+    check_call(["asyncapi", "validate", file_name], cwd=pathlib.Path(__file__).parent)
 
 
 def test_handler_docstring_is_used_as_message_description():
@@ -47,76 +52,64 @@ def test_payload_schema_is_generated_from_pydantic_model():
         "$ref": "#/components/schemas/DownloadFileRequest",
         "deprecated": False,
     }
-    assert doc["components"]["schemas"]["DownloadFileRequest"] == {
-        "description": "Request model for download file",
-        "properties": {
-            "check_hash": {
-                "default": False,
-                "title": "Check Hash",
-                "type": "boolean",
-            },
-            "location": {
-                "description": "Destination local to file system; should be an absolute path",
-                "example": "/tmp/tree.jpg",
-                "format": "path",
-                "title": "Location",
-                "type": "string",
-            },
-            "url": {
-                "description": "URL to download",
-                "example": "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg",
-                "format": "uri",
-                "maxLength": 65536,
-                "minLength": 1,
-                "title": "Url",
-                "type": "string",
-            },
-        },
-        "required": ["url", "location"],
-        "title": "DownloadFileRequest",
-        "type": "object",
-    }
+
+    schema = doc["components"]["schemas"]["DownloadFileRequest"]
+    assert schema["description"] == "Request model for download file"
+    assert schema["title"] == "DownloadFileRequest"
+    assert schema["type"] == "object"
+    assert schema["required"] == ["url", "location"]
+
+    check_hash = schema["properties"]["check_hash"]
+    assert check_hash["default"] is False
+    assert check_hash["title"] == "Check Hash"
+    assert schema_has_type(check_hash, "boolean")
+
+    location = schema["properties"]["location"]
+    assert location["description"] == "Destination local to file system; should be an absolute path"
+    assert location["example"] == "/tmp/tree.jpg"
+    assert location["format"] == "path"
+    assert schema_has_type(location, "string")
+
+    url = schema["properties"]["url"]
+    assert url["description"] == "URL to download"
+    assert url["example"] == "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg"
+    assert url["format"] == "uri"
+    assert url["title"] == "Url"
+    assert schema_has_type(url, "string")
 
 
 def test_ack_schema_is_generated_from_pydantic_model():
     doc = get_doc_dict()
 
-    assert doc["components"]["messages"]["Download_File"]["x-ack"] == {
-        "definitions": {
-            "Data": {
-                "properties": {
-                    "is_accepted": {
-                        "default": True,
-                        "title": "Is Accepted",
-                        "type": "boolean",
-                    }
-                },
-                "title": "Data",
-                "type": "object",
-            }
-        },
-        "description": "Response model for download file",
-        "properties": {
-            "data": {
-                "$ref": "#/components/schemas/DownloadAccepted/definitions/Data"
-            },
-            "error": {
-                "description": "Error message if any",
-                "example": "Invalid request",
-                "title": "Error",
-                "type": "string",
-            },
-            "success": {
-                "default": True,
-                "description": "Success status",
-                "title": "Success",
-                "type": "boolean",
-            },
-        },
-        "required": ["data"],
-        "title": "DownloadAccepted",
-        "type": "object",
-    }
+    ack_schema = doc["components"]["messages"]["Download_File"]["x-ack"]
+    defs_key = "$defs" if "$defs" in ack_schema else "definitions"
+
+    assert ack_schema["description"] == "Response model for download file"
+    assert ack_schema["title"] == "DownloadAccepted"
+    assert ack_schema["type"] == "object"
+    assert ack_schema["required"] == ["data"]
+
+    nested_data = ack_schema[defs_key]["Data"]
+    assert nested_data["title"] == "Data"
+    assert nested_data["type"] == "object"
+    assert nested_data["properties"]["is_accepted"]["default"] is True
+    assert nested_data["properties"]["is_accepted"]["title"] == "Is Accepted"
+    assert nested_data["properties"]["is_accepted"]["type"] == "boolean"
+
+    data_ref = ack_schema["properties"]["data"]["$ref"]
+    assert data_ref == f"#/components/schemas/DownloadAccepted/{defs_key}/Data"
+
+    error_schema = ack_schema["properties"]["error"]
+    assert error_schema["description"] == "Error message if any"
+    assert error_schema["example"] == "Invalid request"
+    assert error_schema["title"] == "Error"
+    assert schema_has_type(error_schema, "string")
+
+    success_schema = ack_schema["properties"]["success"]
+    assert success_schema["default"] is True
+    assert success_schema["description"] == "Success status"
+    assert success_schema["title"] == "Success"
+    assert success_schema["type"] == "boolean"
 
 
 def test_default_init_does_not_share_mutable_state():

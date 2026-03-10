@@ -4,8 +4,16 @@ from typing import Callable, Optional, Type, Union
 from flask import Flask
 from flask_socketio import SocketIO
 from loguru import logger
-from pydantic import BaseModel, ValidationError
+from sio_asyncapi._pydantic import BaseModel
 
+from sio_asyncapi._compat import (
+    BaseValidationError,
+    PYDANTIC_VALIDATION_ERRORS,
+    is_pydantic_model_instance,
+    is_pydantic_model_type,
+    model_dump_json,
+    model_validate,
+)
 from sio_asyncapi.asyncapi.docs import AsyncAPIDoc, NotProvidedType
 
 
@@ -16,22 +24,16 @@ def normalize_namespace(namespace: Optional[str]) -> str:
     """Normalize Socket.IO namespace values."""
     return namespace or DEFAULT_NAMESPACE
 
-class BaseValildationError(ValidationError):
-    @classmethod
-    def init_from_super(cls, parent: ValidationError) ->  "BaseValildationError":
-        """Initialize EmitValidationError from parent ValidationError"""
-        return cls(
-            errors=parent.raw_errors,
-            model=parent.model,
-        )
 
-class RequestValidationError(BaseValildationError):
+class RequestValidationError(BaseValidationError):
     pass
 
-class ResponseValidationError(BaseValildationError):
+
+class ResponseValidationError(BaseValidationError):
     pass
 
-class EmitValidationError(BaseValildationError):
+
+class EmitValidationError(BaseValidationError):
     pass
 
 
@@ -80,14 +82,13 @@ class AsyncAPISocketIO(SocketIO):
         """
         self.validate = validate
         self.generate_docs = generate_docs
-        self.asyncapi_doc: AsyncAPIDoc = \
-            AsyncAPIDoc.default_init(
-                version=version,
-                title=title,
-                description=description,
-                server_url=server_url,
-                server_name=server_name,
-            )
+        self.asyncapi_doc: AsyncAPIDoc = AsyncAPIDoc.default_init(
+            version=version,
+            title=title,
+            description=description,
+            server_url=server_url,
+            server_name=server_name,
+        )
         super().__init__(app=app, *args, **kwargs)
         self.emit_models: dict[tuple[str, str], Type[BaseModel]] = {}
 
@@ -103,10 +104,10 @@ class AsyncAPISocketIO(SocketIO):
             if model is not None:
                 payload = args[0] if args else None
                 try:
-                    model.parse_obj(payload)
-                except ValidationError as e:
+                    model_validate(model, payload)
+                except PYDANTIC_VALIDATION_ERRORS as e:
                     logger.error(f"Error validating emit '{event}': {e}")
-                    raise EmitValidationError.init_from_super(e)
+                    raise EmitValidationError.init_from_super(e) from e
         return super().emit(event, *args, **kwargs)
 
     def doc_emit(
@@ -124,6 +125,7 @@ class AsyncAPISocketIO(SocketIO):
             event (str): event name
             model (Type[BaseModel]): pydantic model
         """
+
         def decorator(func):
             normalized_namespace = normalize_namespace(namespace)
             event_key = (event, normalized_namespace)
@@ -139,16 +141,17 @@ class AsyncAPISocketIO(SocketIO):
                 namespace=normalized_namespace,
             )
             return func
+
         return decorator
 
     def on(
-            self,
-            message,
-            namespace=None,
-            *,
-            get_from_typehint: bool = False,
-            response_model: Optional[Union [Type[BaseModel], NotProvidedType]] = None,
-            request_model: Optional[Union [Type[BaseModel], NotProvidedType]] = None,
+        self,
+        message,
+        namespace=None,
+        *,
+        get_from_typehint: bool = False,
+        response_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
+        request_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
     ):
         """Decorator to register a SocketIO event handler with additional functionalities
 
@@ -163,8 +166,8 @@ class AsyncAPISocketIO(SocketIO):
             request_model (Optional[Type[BaseModel]], optional): Request payload model used
                 for validation and documentation. Defaults to None.
         """
-        def decorator(handler: Callable):
 
+        def decorator(handler: Callable):
             nonlocal request_model
             nonlocal response_model
             if get_from_typehint:
@@ -173,15 +176,16 @@ class AsyncAPISocketIO(SocketIO):
                 except IndexError:
                     posible_request_model = None
                 else:
-                    posible_request_model = handler.__annotations__.get(first_arg_name, "NotProvided")
-                posible_response_model = handler.__annotations__.get("return", "NotProvided")
+                    posible_request_model = handler.__annotations__.get(
+                        first_arg_name, "NotProvided"
+                    )
+                posible_response_model = handler.__annotations__.get(
+                    "return", "NotProvided"
+                )
                 if request_model is None:
-                    request_model = posible_request_model # type: ignore
+                    request_model = posible_request_model  # type: ignore
                 if response_model is None:
-                    response_model = posible_response_model # type: ignore
-
-            # print(f"request_model: {request_model}")
-            # print(f"response_model: {response_model}")
+                    response_model = posible_response_model  # type: ignore
 
             if self.generate_docs:
                 self.asyncapi_doc.add_new_receiver(
@@ -195,19 +199,20 @@ class AsyncAPISocketIO(SocketIO):
             def wrapper(*args, **kwargs):
                 new_handler = self._handle_all(
                     request_model=request_model,
-                    response_model=response_model
+                    response_model=response_model,
                 )(handler)
                 return new_handler(*args, **kwargs)
 
-            # Decorate with SocketIO.on decorator
             super(AsyncAPISocketIO, self).on(message, namespace)(wrapper)
             return wrapper
+
         return decorator
 
-    def _handle_all(self,
-                    response_model: Optional[Union [Type[BaseModel], NotProvidedType]] = None,
-                    request_model: Optional[Union [Type[BaseModel], NotProvidedType]] = None,
-                    ):
+    def _handle_all(
+        self,
+        response_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
+        request_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
+    ):
         """Decorator to validate request and response with pydantic models
         Args:
             handler (Callable, optional): handler function. Defaults to None.
@@ -220,55 +225,50 @@ class AsyncAPISocketIO(SocketIO):
         """
 
         def decorator(handler: Callable):
-
             def wrapper(*args, **kwargs):
                 did_request_came_as_arg = False
                 request_provided = False
                 request = None
-                # check if request is in args or kwargs
                 if len(args) > 0:
                     did_request_came_as_arg = True
                     request_provided = True
                     request = args[0]
                 elif "request" in kwargs:
-                    did_request_came_as_arg = False
                     request_provided = True
                     request = kwargs.get("request")
 
-                # if there is a request in args or kwargs, validate it
                 if request_provided:
                     try:
-                        if self.validate and request_model and \
-                            isinstance(request_model, type(BaseModel)):
-                            request_model.parse_obj(request) # type: ignore
-                    except ValidationError as e:
+                        if self.validate and request_model and is_pydantic_model_type(
+                            request_model
+                        ):
+                            model_validate(request_model, request)
+                    except PYDANTIC_VALIDATION_ERRORS as e:
                         logger.error(f"ValidationError for incoming request: {e}")
-                        raise RequestValidationError.init_from_super(e)
+                        raise RequestValidationError.init_from_super(e) from e
 
-                    # convert request to pydantic model if request_model is provided
-                    if request_model and isinstance(request_model, type(BaseModel)):
-                        request = request_model.parse_obj(request) # type: ignore
+                    if request_model and is_pydantic_model_type(request_model):
+                        request = model_validate(request_model, request)
                         if did_request_came_as_arg:
                             args = (request, *args[1:])
                         else:
                             kwargs["request"] = request
 
-                # call handler with converted request and validate response
                 response = handler(*args, **kwargs)
                 if response is not None:
                     try:
-                        if self.validate and response_model and \
-                            isinstance(response_model, type(BaseModel)):
-                            response_model.parse_obj(response) # type: ignore
-                    except ValidationError as e:
+                        if self.validate and response_model and is_pydantic_model_type(
+                            response_model
+                        ):
+                            model_validate(response_model, response)
+                    except PYDANTIC_VALIDATION_ERRORS as e:
                         logger.error(f"ValidationError for outgoing response: {e}")
-                        raise ResponseValidationError.init_from_super(e)
+                        raise ResponseValidationError.init_from_super(e) from e
 
-                # if response is a pydantic model, convert it to json
-                if isinstance(response, BaseModel):
-                    return response.json()
-                else:
-                    return response
+                if is_pydantic_model_instance(response):
+                    return model_dump_json(response)
+                return response
 
             return wrapper
+
         return decorator

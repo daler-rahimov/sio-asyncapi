@@ -21,7 +21,7 @@ from typing import (
 )
 from urllib.parse import ParseResult
 from warnings import warn
-from pydantic import BaseModel, Field, root_validator, validator
+from sio_asyncapi._pydantic import BaseModel, Field, root_validator, validator
 
 SPECIAL_PATH_FORMAT: str = '#-special-path-#-{}-#-special-#'
 

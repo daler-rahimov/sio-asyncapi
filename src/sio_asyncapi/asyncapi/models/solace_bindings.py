@@ -2,7 +2,7 @@ from typing import Optional, List
 
 from enum import Enum
 
-from pydantic import BaseModel, Extra
+from sio_asyncapi._pydantic import BaseModel, Extra
 
 
 class SolaceMessageType(BaseModel):

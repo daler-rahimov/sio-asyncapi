@@ -1,6 +1,6 @@
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, Extra
+from sio_asyncapi._pydantic import BaseModel, Extra
 
 from .operation_bindings import OperationBindings
 from .external_documentation import ExternalDocumentation

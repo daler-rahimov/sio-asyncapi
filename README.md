@@ -22,6 +22,7 @@ SIO-AsyncAPI is a Python library built on the top of [Flask-SocketIO](https://fl
 
 Similar to FastAPI, SIO-AsyncAPI allows you to define your SocketIO server using Python type annotations and Pydantic models. It also provides a way to generate an AsyncAPI specification from your SocketIO server.
 
+SIO-AsyncAPI now supports both Pydantic 1.10+ and 2.x.
 
 ## Installation
 
@@ -82,7 +83,7 @@ def default_error_handler(e: Exception):
     """
     if isinstance(e, RequestValidationError):
         logger.error(f"Request validation error: {e}")
-        return UserSignUpResponse(error=str(e), success=False).json()
+        return {"success": False, "error": str(e)}
     elif isinstance(e, ResponseValidationError):
         logger.critical(f"Response validation error: {e}")
         raise e

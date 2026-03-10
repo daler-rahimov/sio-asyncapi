@@ -8,22 +8,22 @@ readme = "README.md"
 # packages = [{include = "src/sio_asyncapi"}]
 
 [tool.poetry.dependencies]
-python = "^3.8.10"
-flask-socketio = "^5.3.2"
-pydantic = {extras = ["email"], version = "^1.10.4"}
-pyyaml = "^6.0"
-python-engineio = "^4.3.4"
+python = ">=3.9,<3.13"
+flask-socketio = ">=5.3.2,<6.0"
+pydantic = {extras = ["email"], version = ">=1.10.17,<3.0"}
+pyyaml = ">=6.0,<7.0"
+python-engineio = ">=4.3.4,<5.0"
 loguru = ">=0.6,<0.8"
 
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.2,<9.0"
 pytest-cov = ">=4,<6"
-autopep8 = "^2.0.0"
-codespell = "^2.2.2"
+autopep8 = ">=2.0,<2.4"
+codespell = ">=2.2,<3.0"
 redis = ">=4.4,<6.0"
 pylint = ">=2.15.8,<4.0.0"
-hypothesis-auto = "^1.1.4"
+hypothesis-auto = ">=1.1.4,<2.0"
 
 [build-system]
 requires = ["poetry-core"]

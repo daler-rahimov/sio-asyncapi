@@ -1,6 +1,6 @@
 from typing import List, Optional
 from enum import Enum
-from pydantic import BaseModel, Field, Extra
+from sio_asyncapi._pydantic import BaseModel, Field, Extra
 
 
 class AmqpChannelType(str, Enum):

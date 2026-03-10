@@ -2,7 +2,7 @@ from typing import Optional
 
 from enum import Enum
 
-from pydantic import BaseModel, Extra, Field
+from sio_asyncapi._pydantic import BaseModel, Extra, Field
 
 
 class IbmMqDestinationType(str, Enum):

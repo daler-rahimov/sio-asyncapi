@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional, Union
 
-from pydantic import BaseModel, Extra, Field
+from sio_asyncapi._pydantic import BaseModel, Extra, Field
 
 from .components import Components
 from .external_documentation import ExternalDocumentation

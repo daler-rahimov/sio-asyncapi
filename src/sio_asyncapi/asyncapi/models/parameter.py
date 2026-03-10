@@ -1,6 +1,6 @@
 from typing import Optional, Union
 
-from pydantic import BaseModel, Extra, Field, constr
+from sio_asyncapi._pydantic import BaseModel, Extra, Field, constr
 
 from .reference import Reference
 from .schema import Schema

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import AnyUrl, BaseModel, Extra
+from sio_asyncapi._pydantic import AnyUrl, BaseModel, Extra
 
 
 class License(BaseModel):
