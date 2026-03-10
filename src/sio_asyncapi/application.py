@@ -8,6 +8,14 @@ from pydantic import BaseModel, ValidationError
 
 from sio_asyncapi.asyncapi.docs import AsyncAPIDoc, NotProvidedType
 
+
+DEFAULT_NAMESPACE = "/"
+
+
+def normalize_namespace(namespace: Optional[str]) -> str:
+    """Normalize Socket.IO namespace values."""
+    return namespace or DEFAULT_NAMESPACE
+
 class BaseValildationError(ValidationError):
     @classmethod
     def init_from_super(cls, parent: ValidationError) ->  "BaseValildationError":
@@ -81,7 +89,7 @@ class AsyncAPISocketIO(SocketIO):
                 server_name=server_name,
             )
         super().__init__(app=app, *args, **kwargs)
-        self.emit_models: dict[str, Type[BaseModel]] = {}
+        self.emit_models: dict[tuple[str, str], Type[BaseModel]] = {}
 
     def emit(self, event: str, *args, **kwargs):
         """
@@ -90,16 +98,24 @@ class AsyncAPISocketIO(SocketIO):
         for more info refer to :meth:`flask_socketio.SocketIO.emit`
         """
         if self.validate:
-            model = self.emit_models.get(event)
+            namespace = normalize_namespace(kwargs.get("namespace"))
+            model = self.emit_models.get((event, namespace))
             if model is not None:
+                payload = args[0] if args else None
                 try:
-                    model.validate(args[0])
+                    model.parse_obj(payload)
                 except ValidationError as e:
                     logger.error(f"Error validating emit '{event}': {e}")
                     raise EmitValidationError.init_from_super(e)
         return super().emit(event, *args, **kwargs)
 
-    def doc_emit(self, event: str, model: Type[BaseModel], discription: str = ""):
+    def doc_emit(
+        self,
+        event: str,
+        model: Type[BaseModel],
+        discription: str = "",
+        namespace: Optional[str] = None,
+    ):
         """
         Decorator to register/document a SocketIO emit event. This will be
         used to generate AsyncAPI specs and validate emits calls.
@@ -109,10 +125,19 @@ class AsyncAPISocketIO(SocketIO):
             model (Type[BaseModel]): pydantic model
         """
         def decorator(func):
-            if self.emit_models.get(event):
-                raise ValueError(f"Event {event} already registered")
-            self.emit_models[event] = model
-            self.asyncapi_doc.add_new_sender(event, model, discription)
+            normalized_namespace = normalize_namespace(namespace)
+            event_key = (event, normalized_namespace)
+            if self.emit_models.get(event_key):
+                raise ValueError(
+                    f"Event {event} already registered for namespace {normalized_namespace}"
+                )
+            self.emit_models[event_key] = model
+            self.asyncapi_doc.add_new_sender(
+                event,
+                model,
+                discription,
+                namespace=normalized_namespace,
+            )
             return func
         return decorator
 
@@ -164,6 +189,7 @@ class AsyncAPISocketIO(SocketIO):
                     message,
                     ack_data_model=response_model,
                     payload_model=request_model,
+                    namespace=normalize_namespace(namespace),
                 )
 
             def wrapper(*args, **kwargs):
@@ -197,21 +223,24 @@ class AsyncAPISocketIO(SocketIO):
 
             def wrapper(*args, **kwargs):
                 did_request_came_as_arg = False
+                request_provided = False
                 request = None
                 # check if request is in args or kwargs
                 if len(args) > 0:
                     did_request_came_as_arg = True
+                    request_provided = True
                     request = args[0]
-                if not request:
+                elif "request" in kwargs:
                     did_request_came_as_arg = False
+                    request_provided = True
                     request = kwargs.get("request")
 
                 # if there is a request in args or kwargs, validate it
-                if request:
+                if request_provided:
                     try:
                         if self.validate and request_model and \
                             isinstance(request_model, type(BaseModel)):
-                            request_model.validate(request) # type: ignore
+                            request_model.parse_obj(request) # type: ignore
                     except ValidationError as e:
                         logger.error(f"ValidationError for incoming request: {e}")
                         raise RequestValidationError.init_from_super(e)
@@ -226,11 +255,11 @@ class AsyncAPISocketIO(SocketIO):
 
                 # call handler with converted request and validate response
                 response = handler(*args, **kwargs)
-                if response:
+                if response is not None:
                     try:
                         if self.validate and response_model and \
                             isinstance(response_model, type(BaseModel)):
-                            response_model.validate(response) # type: ignore
+                            response_model.parse_obj(response) # type: ignore
                     except ValidationError as e:
                         logger.error(f"ValidationError for outgoing response: {e}")
                         raise ResponseValidationError.init_from_super(e)

@@ -1,6 +1,7 @@
 """
 AsycnAPI [https://studio.asyncapi.com/] documentation auto generation.
 """
+import copy
 import json
 import textwrap
 from typing import Callable, Literal, Optional, Type, Union
@@ -10,6 +11,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from sio_asyncapi.asyncapi.models.async_api_base import AsyncAPIBase
+from sio_asyncapi.asyncapi.models.channel import ChannelItem
 from sio_asyncapi.asyncapi.models.message import Message
 
 from .utils import add_ref_prepath
@@ -22,7 +24,7 @@ In order to add support for Socket.IO ACK value, AsyncAPI is extended with with 
 This documentation should **NOT** be used for generating code due to these limitations.
 """
 
-default_channels = yaml.safe_load(
+DEFAULT_CHANNELS = yaml.safe_load(
 """
 /:
   publish:
@@ -38,7 +40,7 @@ default_channels = yaml.safe_load(
 """
 )
 
-default_components = yaml.safe_load(
+DEFAULT_COMPONENTS = yaml.safe_load(
 """
 messages:
 
@@ -52,6 +54,48 @@ schemas:
 class AsyncAPIDoc(AsyncAPIBase):
     """AsyncAPI documentation generator."""
 
+    @staticmethod
+    def normalize_namespace(namespace: Optional[str]) -> str:
+        """Normalize Socket.IO namespace values."""
+        return namespace or "/"
+
+    @staticmethod
+    def message_component_name(name: str, namespace: str, *, title_case: bool) -> str:
+        """Build a namespace-safe message component name."""
+        base_name = name.title() if title_case else name
+        if namespace == "/":
+            return base_name
+
+        namespace_prefix = "_".join(
+            part.title() for part in namespace.strip("/").split("/") if part
+        )
+        return f"{namespace_prefix}_{base_name}"
+
+    @staticmethod
+    def channel_template() -> ChannelItem:
+        """Return a fresh channel template."""
+        return ChannelItem.parse_obj(yaml.safe_load(
+            """
+publish:
+  message:
+    oneOf: []
+
+subscribe:
+  message:
+    oneOf: []
+
+x-handlers:
+  disconnect: disconnect
+"""
+        ))
+
+    def ensure_channel(self, namespace: Optional[str]) -> str:
+        """Ensure that the namespace channel exists in the document."""
+        normalized_namespace = self.normalize_namespace(namespace)
+        if normalized_namespace not in self.channels:
+            self.channels[normalized_namespace] = self.channel_template()
+        return normalized_namespace
+
     @classmethod
     def default_init(cls,
         version: str = "1.0.0",
@@ -63,8 +107,10 @@ class AsyncAPIDoc(AsyncAPIBase):
     ) -> "AsyncAPIDoc":
         """Initialize AsyncAPI documentation generator."""
         logger.info(f"{server_url=}, {server_name=}, {server_protocol=}")
+        default_channels = copy.deepcopy(DEFAULT_CHANNELS)
         default_channels["/"]["subscribe"]["message"]["oneOf"] = []
         default_channels["/"]["publish"]["message"]["oneOf"] = []
+        default_components = copy.deepcopy(DEFAULT_COMPONENTS)
         default_components["messages"] = {}
         initial_spec_obj = {
             "info": {
@@ -100,9 +146,15 @@ class AsyncAPIDoc(AsyncAPIBase):
             message_name=None,
             ack_data_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
             payload_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
+            namespace: Optional[str] = None,
         ) -> None:
+        channel_name = self.ensure_channel(namespace)
         if message_name is None:
-            message_name = name.title()
+            message_name = self.message_component_name(
+                name,
+                channel_name,
+                title_case=True,
+            )
 
         # TODO: make sure schema name is unique
         if ack_data_model == "NotProvided":
@@ -149,16 +201,18 @@ class AsyncAPIDoc(AsyncAPIBase):
 
         # add to sub
         one_of = {"$ref": f"#/components/messages/{message_name}"}
-        if self.channels and self.channels["/"] and self.channels["/"].publish and self.channels["/"].publish.message:
-            self.channels["/"].publish.message.__dict__["oneOf"].append(one_of)
+        if self.channels and self.channels[channel_name] and self.channels[channel_name].publish and self.channels[channel_name].publish.message:
+            self.channels[channel_name].publish.message.__dict__["oneOf"].append(one_of)
 
     def add_new_sender(
             self,
             event: str,
             payload_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
             description: Optional[str] = None,
+            namespace: Optional[str] = None,
         ) -> None:
         """Generate new sender documentation for AsyncAPI."""
+        channel_name = self.ensure_channel(namespace)
         if payload_model == "NotProvided":
             payload = {"$ref": "#/components/schemas/NoSpec"}
         elif isinstance(payload_model, type(BaseModel)):
@@ -177,6 +231,12 @@ class AsyncAPIDoc(AsyncAPIBase):
             "payload": payload,
         }
 
+        message_name = self.message_component_name(
+            event,
+            channel_name,
+            title_case=False,
+        )
+
         # remove multiple spaces so yaml dump does not try to escape them
         if new_message["description"]:
             # add single indent at the beginning if not present
@@ -186,9 +246,9 @@ class AsyncAPIDoc(AsyncAPIBase):
 
         # add message to spec
         if self.components and self.components.messages is not None:
-            self.components.messages[event] = Message.parse_obj(new_message)
+            self.components.messages[message_name] = Message.parse_obj(new_message)
 
         # add to pub
-        one_of = {"$ref": f"#/components/messages/{event}"}
-        if self.channels and self.channels["/"] and self.channels["/"].subscribe and self.channels["/"].subscribe.message:
-            self.channels["/"].subscribe.message.__dict__["oneOf"].append(one_of)
+        one_of = {"$ref": f"#/components/messages/{message_name}"}
+        if self.channels and self.channels[channel_name] and self.channels[channel_name].subscribe and self.channels[channel_name].subscribe.message:
+            self.channels[channel_name].subscribe.message.__dict__["oneOf"].append(one_of)
