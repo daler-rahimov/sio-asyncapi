@@ -125,7 +125,7 @@ if __name__ == '__main__':
     socketio.run(app, debug=True)
 
 
-# Generate and save AsycnAPI [https://studio.asyncapi.com/] specification in ./asyncapi_2.5.0.yml
+# Generate and save AsycnAPI [https://studio.asyncapi.com/] specification in AsyncAPI 3.1 YAML format
 # Usage: python asycnapi_save_doc
 FILE_NAME = "downloader.yml"
 

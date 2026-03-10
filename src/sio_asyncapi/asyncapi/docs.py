@@ -1,64 +1,55 @@
-"""
-AsycnAPI [https://studio.asyncapi.com/] documentation auto generation.
-"""
+"""AsyncAPI 3.1 documentation generation for Socket.IO servers."""
 import copy
 import json
+import re
 import textwrap
-from typing import Any, Callable, Literal, Optional, Type, Union
+from urllib.parse import urlsplit
+from typing import Any, Callable, Dict, Literal, Optional, Type, Union
 
 import yaml
 from loguru import logger
 from sio_asyncapi._pydantic import BaseModel
 
-from sio_asyncapi._compat import (
-    is_pydantic_model_type,
-    model_dump_json,
-    model_schema,
-    model_validate,
-)
-from sio_asyncapi.asyncapi.models.async_api_base import AsyncAPIBase
-from sio_asyncapi.asyncapi.models.channel import ChannelItem
-from sio_asyncapi.asyncapi.models.message import Message
+from sio_asyncapi._compat import is_pydantic_model_type, model_schema
 
 from .utils import add_ref_prepath
 
 NotProvidedType = Literal["NotProvided"]
 
-add_description ="""
-<br/> AsyncAPI currently does not support Socket.IO binding and Web Socket like syntax used for now.
-In order to add support for Socket.IO ACK value, AsyncAPI is extended with with x-ack keyword.
-This documentation should **NOT** be used for generating code due to these limitations.
+add_description = """
+<br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in the custom `x-ack` message extension.
+Socket.IO-specific transport details may still require application-level interpretation.
 """
 
-DEFAULT_CHANNELS = yaml.safe_load(
-"""
-/:
-  publish:
-    message:
-      oneOf:
-
-  subscribe:
-    message:
-      oneOf:
-
-  x-handlers:
-    disconnect: disconnect
-"""
-)
-
-DEFAULT_COMPONENTS = yaml.safe_load(
-"""
-messages:
-
-schemas:
-  NoSpec:
-    description: Specification is not provided
-"""
-)
+DEFAULT_COMPONENTS = {
+    "messages": {},
+    "schemas": {
+        "NoSpec": {
+            "description": "Specification is not provided",
+        }
+    },
+}
 
 
-class AsyncAPIDoc(AsyncAPIBase):
-    """AsyncAPI documentation generator."""
+class AsyncAPIDoc:
+    """AsyncAPI 3.1 documentation generator."""
+
+    def __init__(
+        self,
+        *,
+        asyncapi: str,
+        info: Dict[str, Any],
+        servers: Dict[str, Any],
+        channels: Dict[str, Any],
+        operations: Dict[str, Any],
+        components: Dict[str, Any],
+    ) -> None:
+        self.asyncapi = asyncapi
+        self.info = info
+        self.servers = servers
+        self.channels = channels
+        self.operations = operations
+        self.components = components
 
     @staticmethod
     def normalize_namespace(namespace: Optional[str]) -> str:
@@ -66,44 +57,62 @@ class AsyncAPIDoc(AsyncAPIBase):
         return namespace or "/"
 
     @staticmethod
-    def message_component_name(name: str, namespace: str, *, title_case: bool) -> str:
+    def _clean_description(description: Optional[str]) -> str:
+        """Normalize multiline descriptions for stable output."""
+        if not description:
+            return ""
+        if not description.startswith(" "):
+            description = " " + description
+        return textwrap.dedent(description)
+
+    @staticmethod
+    def _slugify(value: str) -> str:
+        """Convert a free-form value into a stable AsyncAPI identifier."""
+        slug = re.sub(r"[^a-zA-Z0-9]+", "_", value).strip("_")
+        return slug.lower() or "root"
+
+    @classmethod
+    def namespace_component_name(cls, namespace: Optional[str]) -> str:
+        """Return a stable channel identifier for the namespace."""
+        normalized_namespace = cls.normalize_namespace(namespace)
+        if normalized_namespace == "/":
+            return "root"
+        return cls._slugify(normalized_namespace.strip("/"))
+
+    @classmethod
+    def message_component_name(
+        cls,
+        name: str,
+        namespace: Optional[str],
+        *,
+        title_case: bool,
+    ) -> str:
         """Build a namespace-safe message component name."""
         base_name = name.title() if title_case else name
-        if namespace == "/":
+        namespace_component = cls.namespace_component_name(namespace)
+        if namespace_component == "root":
             return base_name
-
         namespace_prefix = "_".join(
-            part.title() for part in namespace.strip("/").split("/") if part
+            part.title()
+            for part in cls.normalize_namespace(namespace).strip("/").split("/")
+            if part
         )
         return f"{namespace_prefix}_{base_name}"
 
-    @staticmethod
-    def channel_template() -> ChannelItem:
-        """Return a fresh channel template."""
-        return model_validate(
-            ChannelItem,
-            yaml.safe_load(
-                """
-publish:
-  message:
-    oneOf: []
 
-subscribe:
-  message:
-    oneOf: []
-
-x-handlers:
-  disconnect: disconnect
-"""
-            ),
-        )  # type: ChannelItem
-
-    def ensure_channel(self, namespace: Optional[str]) -> str:
-        """Ensure that the namespace channel exists in the document."""
-        normalized_namespace = self.normalize_namespace(namespace)
-        if normalized_namespace not in self.channels:
-            self.channels[normalized_namespace] = self.channel_template()
-        return normalized_namespace
+    @classmethod
+    def operation_component_name(
+        cls,
+        action: str,
+        name: str,
+        namespace: Optional[str],
+    ) -> str:
+        """Build a namespace-safe operation identifier."""
+        namespace_component = cls.namespace_component_name(namespace)
+        name_component = cls._slugify(name)
+        if namespace_component == "root":
+            return f"{action}_{name_component}"
+        return f"{namespace_component}_{action}_{name_component}"
 
     @classmethod
     def default_init(
@@ -117,40 +126,189 @@ x-handlers:
     ) -> "AsyncAPIDoc":
         """Initialize AsyncAPI documentation generator."""
         logger.info(f"{server_url=}, {server_name=}, {server_protocol=}")
-        default_channels = copy.deepcopy(DEFAULT_CHANNELS)
-        default_channels["/"]["subscribe"]["message"]["oneOf"] = []
-        default_channels["/"]["publish"]["message"]["oneOf"] = []
-        default_components = copy.deepcopy(DEFAULT_COMPONENTS)
-        default_components["messages"] = {}
-        initial_spec_obj = {
-            "info": {
+        parsed_server = urlsplit(server_url)
+        server_host = parsed_server.netloc or parsed_server.path or server_url
+        server = {
+            "host": server_host,
+            "protocol": server_protocol,
+        }
+        if parsed_server.path and parsed_server.netloc and parsed_server.path != "/":
+            server["pathname"] = parsed_server.path
+
+        return cls(
+            asyncapi="3.1.0",
+            info={
                 "title": title,
                 "version": version,
                 "description": description + add_description,
             },
-            "servers": {
-                server_name: {
-                    "url": server_url,
-                    "protocol": server_protocol,
-                }
-            },
-            "asyncapi": "2.5.0",
-            "channels": default_channels,
-            "components": default_components,
-        }
-        return model_validate(AsyncAPIDoc, initial_spec_obj)
-
-    def _get_doc_dict(self) -> dict[str, Any]:
-        """Return the AsyncAPI document as a plain dict."""
-        return json.loads(
-            model_dump_json(
-                self,
-                by_alias=True,
-                exclude_none=True,
-            )
+            servers={server_name: server},
+            channels={},
+            operations={},
+            components=copy.deepcopy(DEFAULT_COMPONENTS),
         )
 
-    def _lookup_ref(self, ref: str, doc_dict: dict[str, Any]) -> Any:
+    def dict(self, **_: Any) -> Dict[str, Any]:
+        """Return the AsyncAPI document as a plain dict."""
+        return {
+            "asyncapi": self.asyncapi,
+            "info": copy.deepcopy(self.info),
+            "servers": copy.deepcopy(self.servers),
+            "channels": copy.deepcopy(self.channels),
+            "operations": copy.deepcopy(self.operations),
+            "components": copy.deepcopy(self.components),
+        }
+
+    def json(self, **kwargs: Any) -> str:
+        """Return the AsyncAPI document as JSON."""
+        json_kwargs = {key: value for key, value in kwargs.items() if key not in {"by_alias", "exclude_none"}}
+        return json.dumps(self.dict(), **json_kwargs)
+
+    def get_yaml(self) -> str:
+        """Return AsyncAPI documentation in YAML format."""
+        return yaml.safe_dump(self.dict(), sort_keys=False)
+
+    def ensure_channel(self, namespace: Optional[str]) -> str:
+        """Ensure the namespace channel exists and return its identifier."""
+        normalized_namespace = self.normalize_namespace(namespace)
+        channel_name = self.namespace_component_name(normalized_namespace)
+        if channel_name not in self.channels:
+            self.channels[channel_name] = {
+                "address": normalized_namespace,
+                "messages": {},
+            }
+        return channel_name
+
+    def _schema_ref(
+        self,
+        model: Optional[Union[Type[BaseModel], NotProvidedType]],
+    ) -> Optional[Dict[str, str]]:
+        """Create or fetch a schema reference for a payload or reply."""
+        if model == "NotProvided":
+            return {"$ref": "#/components/schemas/NoSpec"}
+        if not is_pydantic_model_type(model):
+            return None
+
+        schema_name = model.__name__
+        schema = model_schema(model)
+        add_ref_prepath(schema, f"/components/schemas/{schema_name}")
+        self.components["schemas"][schema_name] = schema
+        return {"$ref": f"#/components/schemas/{schema_name}"}
+
+    def _store_message(
+        self,
+        *,
+        channel_name: str,
+        message_component: str,
+        event_name: str,
+        description: str,
+        payload: Optional[Dict[str, str]],
+    ) -> str:
+        """Store a reusable message component and attach it to a channel."""
+        message = {
+            "name": event_name,
+            "description": description,
+        }
+        if payload is not None:
+            message["payload"] = payload
+
+        self.components["messages"][message_component] = message
+        self.channels[channel_name]["messages"][message_component] = {
+            "$ref": f"#/components/messages/{message_component}"
+        }
+        return f"#/channels/{channel_name}/messages/{message_component}"
+
+    def add_new_receiver(
+        self,
+        handler: Callable,
+        name: str,
+        message_name: Optional[str] = None,
+        ack_data_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
+        payload_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
+        namespace: Optional[str] = None,
+    ) -> None:
+        """Register a client-to-server Socket.IO event as an AsyncAPI receive operation."""
+        normalized_namespace = self.normalize_namespace(namespace)
+        channel_name = self.ensure_channel(normalized_namespace)
+        message_component = message_name or self.message_component_name(
+            name,
+            normalized_namespace,
+            title_case=True,
+        )
+        description = self._clean_description(handler.__doc__)
+        payload_ref = self._schema_ref(payload_model)
+        message = {
+            "name": name,
+            "description": description,
+        }
+        if payload_ref is not None:
+            message["payload"] = payload_ref
+
+        ack_ref = self._schema_ref(ack_data_model)
+        if ack_ref is not None:
+            message["x-ack"] = ack_ref
+
+        self.components["messages"][message_component] = message
+        self.channels[channel_name]["messages"][message_component] = {
+            "$ref": f"#/components/messages/{message_component}"
+        }
+
+        operation_name = self.operation_component_name(
+            "receive",
+            name,
+            normalized_namespace,
+        )
+        operation = {
+            "action": "receive",
+            "channel": {"$ref": f"#/channels/{channel_name}"},
+            "messages": [{"$ref": f"#/channels/{channel_name}/messages/{message_component}"}],
+        }
+        if description:
+            operation["description"] = description
+
+        self.operations[operation_name] = operation
+
+    def add_new_sender(
+        self,
+        event: str,
+        payload_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
+        description: Optional[str] = None,
+        namespace: Optional[str] = None,
+    ) -> None:
+        """Register a server-to-client Socket.IO emit as an AsyncAPI send operation."""
+        normalized_namespace = self.normalize_namespace(namespace)
+        channel_name = self.ensure_channel(normalized_namespace)
+        message_component = self.message_component_name(
+            event,
+            normalized_namespace,
+            title_case=False,
+        )
+        clean_description = self._clean_description(description)
+        payload_ref = self._schema_ref(payload_model)
+        message_ref = self._store_message(
+            channel_name=channel_name,
+            message_component=message_component,
+            event_name=event,
+            description=clean_description,
+            payload=payload_ref,
+        )
+
+        operation_name = self.operation_component_name(
+            "send",
+            event,
+            normalized_namespace,
+        )
+        operation = {
+            "action": "send",
+            "channel": {"$ref": f"#/channels/{channel_name}"},
+            "messages": [{"$ref": message_ref}],
+        }
+        if clean_description:
+            operation["description"] = clean_description
+
+        self.operations[operation_name] = operation
+
+    def _lookup_ref(self, ref: str, doc_dict: Dict[str, Any]) -> Any:
         """Resolve a local AsyncAPI ref against the document dict."""
         if not ref.startswith("#/"):
             return None
@@ -165,11 +323,11 @@ x-handlers:
     def _resolve_refs(
         self,
         node: Any,
-        doc_dict: dict[str, Any],
+        doc_dict: Dict[str, Any],
         *,
         seen: Optional[set[str]] = None,
     ) -> Any:
-        """Resolve local refs inside a schema/message payload recursively."""
+        """Resolve local refs inside a schema or AsyncAPI node recursively."""
         if seen is None:
             seen = set()
 
@@ -196,10 +354,7 @@ x-handlers:
                 seen=seen | {ref},
             )
             if isinstance(resolved_node, dict):
-                merged = {
-                    **resolved_node,
-                    **extra_fields,
-                }
+                merged = {**resolved_node, **extra_fields}
                 merged.setdefault("x-component-ref", ref)
                 return merged
             return {"$ref": ref, **extra_fields}
@@ -209,214 +364,54 @@ x-handlers:
             for key, value in node.items()
         }
 
-    def _build_agent_events(
-        self,
-        channel_name: str,
-        message_refs: list[dict[str, Any]],
-        direction: str,
-        doc_dict: dict[str, Any],
-    ) -> list[dict[str, Any]]:
-        """Build agent-friendly event entries from AsyncAPI refs."""
-        events: list[dict[str, Any]] = []
+    def get_agent_schema(self) -> Dict[str, Any]:
+        """Return a compact agent-friendly event catalog derived from AsyncAPI 3.1."""
+        doc_dict = self.dict()
+        events: list[Dict[str, Any]] = []
 
-        for ref_entry in message_refs:
-            message_ref = ref_entry.get("$ref")
-            if not message_ref:
-                continue
-
+        for operation_id in sorted(doc_dict["operations"]):
+            operation = doc_dict["operations"][operation_id]
+            channel = self._resolve_refs(operation["channel"], doc_dict)
+            namespace = channel.get("address", "/")
+            direction = "client_to_server" if operation["action"] == "receive" else "server_to_client"
+            message_ref = operation["messages"][0]["$ref"]
             message_component = message_ref.rsplit("/", 1)[-1]
-            raw_message = self._lookup_ref(message_ref, doc_dict)
-            if not isinstance(raw_message, dict):
-                continue
+            message = self._resolve_refs({"$ref": message_ref}, doc_dict)
 
             event = {
-                "name": raw_message.get("name", message_component),
-                "namespace": channel_name,
+                "name": message.get("name", message_component),
+                "namespace": namespace,
                 "direction": direction,
+                "operation_id": operation_id,
                 "message_component": message_component,
-                "description": raw_message.get("description", ""),
+                "description": message.get("description") or operation.get("description", ""),
             }
 
-            payload = raw_message.get("payload")
+            payload = message.get("payload")
             if payload is not None:
-                payload_ref = payload.get("$ref") if isinstance(payload, dict) else None
-                payload_key = "input_schema" if direction == "client_to_server" else "output_schema"
-                event[payload_key] = self._resolve_refs(payload, doc_dict)
-                if payload_ref:
-                    event[f"{payload_key}_component"] = payload_ref.rsplit("/", 1)[-1]
+                schema_key = "input_schema" if direction == "client_to_server" else "output_schema"
+                event[schema_key] = self._resolve_refs(payload, doc_dict)
+                if isinstance(payload, dict) and payload.get("x-component-ref"):
+                    event[f"{schema_key}_component"] = payload["x-component-ref"].rsplit("/", 1)[-1]
 
             if direction == "client_to_server":
-                ack = raw_message.get("x-ack")
-                if ack is not None:
-                    event["ack_schema"] = self._resolve_refs(ack, doc_dict)
-                    if isinstance(ack, dict) and ack.get("title"):
-                        event["ack_schema_component"] = ack["title"]
+                ack_schema = message.get("x-ack")
+                if ack_schema is not None:
+                    event["ack_schema"] = self._resolve_refs(ack_schema, doc_dict)
+                    if isinstance(event["ack_schema"], dict) and event["ack_schema"].get("x-component-ref"):
+                        event["ack_schema_component"] = event["ack_schema"]["x-component-ref"].rsplit("/", 1)[-1]
 
             events.append(event)
-
-        return events
-
-    def get_agent_schema(self) -> dict[str, Any]:
-        """Return a compact agent-friendly event catalog derived from AsyncAPI."""
-        doc_dict = self._get_doc_dict()
-        channels = doc_dict.get("channels", {})
-        events: list[dict[str, Any]] = []
-
-        for channel_name in sorted(channels):
-            channel = channels[channel_name]
-            publish_one_of = (
-                channel.get("publish", {})
-                .get("message", {})
-                .get("oneOf", [])
-            )
-            subscribe_one_of = (
-                channel.get("subscribe", {})
-                .get("message", {})
-                .get("oneOf", [])
-            )
-            events.extend(
-                self._build_agent_events(
-                    channel_name,
-                    publish_one_of,
-                    "client_to_server",
-                    doc_dict,
-                )
-            )
-            events.extend(
-                self._build_agent_events(
-                    channel_name,
-                    subscribe_one_of,
-                    "server_to_client",
-                    doc_dict,
-                )
-            )
-
-        events.sort(key=lambda item: (item["namespace"], item["direction"], item["name"]))
 
         return {
             "format": "sio-asyncapi-agent-schema",
             "version": "1.0",
-            "asyncapi_version": doc_dict.get("asyncapi"),
-            "info": doc_dict.get("info", {}),
-            "servers": doc_dict.get("servers", {}),
+            "asyncapi_version": doc_dict["asyncapi"],
+            "info": doc_dict["info"],
+            "servers": doc_dict["servers"],
             "events": events,
         }
 
     def get_agent_schema_json(self) -> str:
         """Return the compact agent-friendly event catalog as JSON."""
         return json.dumps(self.get_agent_schema(), indent=2, sort_keys=True)
-
-    def get_yaml(self):
-        """Return AsyncAPI documentation in YAML format."""
-        return yaml.safe_dump(self._get_doc_dict())
-
-    def add_new_receiver(
-        self,
-        handler: Callable,
-        name: str,
-        message_name=None,
-        ack_data_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
-        payload_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
-        namespace: Optional[str] = None,
-    ) -> None:
-        channel_name = self.ensure_channel(namespace)
-        if message_name is None:
-            message_name = self.message_component_name(
-                name,
-                channel_name,
-                title_case=True,
-            )
-
-        if ack_data_model == "NotProvided":
-            ack = {"$ref": "#/components/schemas/NoSpec"}
-        elif is_pydantic_model_type(ack_data_model):
-            ack_schema_name = ack_data_model.__name__
-            ack = model_schema(ack_data_model)
-            add_ref_prepath(ack, f"/components/schemas/{ack_schema_name}")
-            self.components.schemas[ack_schema_name] = ack
-        else:
-            ack = None
-
-        if payload_model == "NotProvided":
-            payload = {"$ref": "#/components/schemas/NoSpec"}
-        elif is_pydantic_model_type(payload_model):
-            payload_schema_name = payload_model.__name__
-            payload = {"$ref": f"#/components/schemas/{payload_schema_name}"}
-            payload_schema = model_schema(payload_model)
-            add_ref_prepath(payload_schema, f"/components/schemas/{payload_schema_name}")
-            self.components.schemas[payload_schema_name] = payload_schema
-        else:
-            payload = None
-
-        new_message = {
-            "name": name,
-            "description": handler.__doc__ if handler.__doc__ else "",
-            "x-ack": ack,
-            "payload": payload,
-        }
-
-        if new_message["description"]:
-            if not new_message["description"].startswith(" "):
-                new_message["description"] = " " + new_message["description"]
-            new_message["description"] = textwrap.dedent(new_message["description"])
-
-        if self.components and self.components.messages is not None:
-            self.components.messages[message_name] = model_validate(Message, new_message)
-
-        one_of = {"$ref": f"#/components/messages/{message_name}"}
-        if (
-            self.channels
-            and self.channels[channel_name]
-            and self.channels[channel_name].publish
-            and self.channels[channel_name].publish.message
-        ):
-            self.channels[channel_name].publish.message.__dict__["oneOf"].append(one_of)
-
-    def add_new_sender(
-        self,
-        event: str,
-        payload_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
-        description: Optional[str] = None,
-        namespace: Optional[str] = None,
-    ) -> None:
-        """Generate new sender documentation for AsyncAPI."""
-        channel_name = self.ensure_channel(namespace)
-        if payload_model == "NotProvided":
-            payload = {"$ref": "#/components/schemas/NoSpec"}
-        elif is_pydantic_model_type(payload_model):
-            payload_schema_name = payload_model.__name__
-            payload_schema = model_schema(payload_model)
-            payload = {"$ref": f"#/components/schemas/{payload_schema_name}"}
-            add_ref_prepath(payload_schema, f"/components/schemas/{payload_schema_name}")
-            self.components.schemas[payload_schema_name] = payload_schema
-        else:
-            payload = None
-
-        new_message = {
-            "name": event,
-            "description": description if description else "",
-            "payload": payload,
-        }
-
-        message_name = self.message_component_name(
-            event,
-            channel_name,
-            title_case=False,
-        )
-
-        if new_message["description"]:
-            if not new_message["description"].startswith(" "):
-                new_message["description"] = " " + new_message["description"]
-            new_message["description"] = textwrap.dedent(new_message["description"])
-
-        if self.components and self.components.messages is not None:
-            self.components.messages[message_name] = model_validate(Message, new_message)
-
-        one_of = {"$ref": f"#/components/messages/{message_name}"}
-        if (
-            self.channels
-            and self.channels[channel_name]
-            and self.channels[channel_name].subscribe
-            and self.channels[channel_name].subscribe.message
-        ):
-            self.channels[channel_name].subscribe.message.__dict__["oneOf"].append(one_of)

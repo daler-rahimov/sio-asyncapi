@@ -1,113 +1,104 @@
-asyncapi: 2.5.0
+asyncapi: 3.1.0
+info:
+  title: Agent Export Demo
+  version: 1.0.0
+  description: 'Demo server that exports both AsyncAPI and agent-friendly schemas.
+
+    <br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in
+    the custom `x-ack` message extension.
+
+    Socket.IO-specific transport details may still require application-level interpretation.
+
+    '
+servers:
+  AGENT_EXPORT_DEMO:
+    host: localhost:5000
+    protocol: socketio
 channels:
-  /:
-    publish:
-      message:
-        oneOf:
-        - $ref: '#/components/messages/Ask_Assistant'
-    subscribe:
-      message:
-        oneOf:
-        - $ref: '#/components/messages/assistant_reply'
-    x-handlers:
-      disconnect: disconnect
+  root:
+    address: /
+    messages:
+      Ask_Assistant:
+        $ref: '#/components/messages/Ask_Assistant'
+      assistant_reply:
+        $ref: '#/components/messages/assistant_reply'
+operations:
+  receive_ask_assistant:
+    action: receive
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/Ask_Assistant'
+    description: Accept a user prompt and start asynchronous assistant processing.
+  send_assistant_reply:
+    action: send
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/assistant_reply'
+    description: Server push event sent when the assistant has produced a reply.
 components:
   messages:
     Ask_Assistant:
-      description: Accept a user prompt and start asynchronous assistant processing.
       name: ask_assistant
+      description: Accept a user prompt and start asynchronous assistant processing.
       payload:
         $ref: '#/components/schemas/AskAssistantRequest'
-        deprecated: false
       x-ack:
-        description: Ack model returned immediately after a prompt is accepted.
-        properties:
-          accepted:
-            default: true
-            description: Whether the prompt was accepted
-            title: Accepted
-            type: boolean
-          request_id:
-            description: Server-generated request identifier
-            title: Request Id
-            type: string
-        required:
-        - request_id
-        title: AskAssistantResponse
-        type: object
+        $ref: '#/components/schemas/AskAssistantResponse'
     assistant_reply:
-      description: Server push event sent when the assistant has produced a reply.
       name: assistant_reply
+      description: Server push event sent when the assistant has produced a reply.
       payload:
         $ref: '#/components/schemas/AssistantReply'
-        deprecated: false
   schemas:
+    NoSpec:
+      description: Specification is not provided
     AskAssistantRequest:
+      title: AskAssistantRequest
       description: Request model for sending a user prompt to the assistant.
+      type: object
       properties:
+        prompt:
+          title: Prompt
+          description: Natural-language prompt from the user
+          type: string
         conversation_id:
+          title: Conversation Id
           description: Conversation identifier for multi-turn chats
           example: chat-123
-          title: Conversation Id
-          type: string
-        prompt:
-          description: Natural-language prompt from the user
-          title: Prompt
           type: string
       required:
       - prompt
-      title: AskAssistantRequest
-      type: object
     AskAssistantResponse:
+      title: AskAssistantResponse
       description: Ack model returned immediately after a prompt is accepted.
+      type: object
       properties:
         accepted:
-          default: true
-          description: Whether the prompt was accepted
           title: Accepted
+          description: Whether the prompt was accepted
+          default: true
           type: boolean
         request_id:
-          description: Server-generated request identifier
           title: Request Id
+          description: Server-generated request identifier
           type: string
       required:
       - request_id
-      title: AskAssistantResponse
-      type: object
     AssistantReply:
+      title: AssistantReply
       description: Server push event containing the assistant's generated reply.
+      type: object
       properties:
-        message:
-          description: Generated reply text
-          title: Message
-          type: string
         request_id:
-          description: Identifier of the related request
           title: Request Id
+          description: Identifier of the related request
+          type: string
+        message:
+          title: Message
+          description: Generated reply text
           type: string
       required:
       - request_id
       - message
-      title: AssistantReply
-      type: object
-    NoSpec:
-      deprecated: false
-      description: Specification is not provided
-info:
-  description: 'Demo server that exports both AsyncAPI and agent-friendly schemas.
-
-    <br/> AsyncAPI currently does not support Socket.IO binding and Web Socket like
-    syntax used for now.
-
-    In order to add support for Socket.IO ACK value, AsyncAPI is extended with with
-    x-ack keyword.
-
-    This documentation should **NOT** be used for generating code due to these limitations.
-
-    '
-  title: Agent Export Demo
-  version: 1.0.0
-servers:
-  AGENT_EXPORT_DEMO:
-    protocol: socketio
-    url: http://localhost:5000

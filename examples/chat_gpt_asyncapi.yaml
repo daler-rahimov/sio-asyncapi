@@ -1,126 +1,156 @@
-asyncapi: 2.5.0
+asyncapi: 3.1.0
+info:
+  title: Tick-Tack-Toe API
+  version: 1.0.0
+  description: 'Tick-Tack-Toe Game API
+
+    <br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in
+    the custom `x-ack` message extension.
+
+    Socket.IO-specific transport details may still require application-level interpretation.
+
+    '
+servers:
+  TICK_TACK_TOE_BACKEND:
+    host: localhost:5000
+    protocol: socketio
 channels:
-  /:
-    publish:
-      message:
-        oneOf:
-        - $ref: '#/components/messages/Create_Game'
-        - $ref: '#/components/messages/Make_Move'
-    subscribe:
-      message:
-        oneOf:
-        - $ref: '#/components/messages/game_created'
-        - $ref: '#/components/messages/move_made'
-        - $ref: '#/components/messages/game_drawn'
-        - $ref: '#/components/messages/game_won'
-    x-handlers:
-      disconnect: disconnect
+  root:
+    address: /
+    messages:
+      Create_Game:
+        $ref: '#/components/messages/Create_Game'
+      game_created:
+        $ref: '#/components/messages/game_created'
+      Make_Move:
+        $ref: '#/components/messages/Make_Move'
+      move_made:
+        $ref: '#/components/messages/move_made'
+      game_drawn:
+        $ref: '#/components/messages/game_drawn'
+      game_won:
+        $ref: '#/components/messages/game_won'
+operations:
+  receive_create_game:
+    action: receive
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/Create_Game'
+  send_game_created:
+    action: send
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/game_created'
+  receive_make_move:
+    action: receive
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/Make_Move'
+  send_move_made:
+    action: send
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/move_made'
+  send_game_drawn:
+    action: send
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/game_drawn'
+  send_game_won:
+    action: send
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/game_won'
 components:
   messages:
     Create_Game:
-      description: ''
       name: create_game
-    Make_Move:
       description: ''
-      name: make_move
-      payload:
-        $ref: '#/components/schemas/MakeMoveData'
-        deprecated: false
-      x-ack:
-        properties:
-          error:
-            description: The error message
-            example: Invalid move
-            title: Error
-            type: string
-        title: MakeMoveAckData
-        type: object
     game_created:
-      description: ''
       name: game_created
+      description: ''
       payload:
         $ref: '#/components/schemas/GameCreatedData'
-        deprecated: false
-    game_drawn:
+    Make_Move:
+      name: make_move
       description: ''
-      name: game_drawn
       payload:
-        $ref: '#/components/schemas/GameDrawnData'
-        deprecated: false
-    game_won:
-      description: ''
-      name: game_won
-      payload:
-        $ref: '#/components/schemas/GameWonData'
-        deprecated: false
+        $ref: '#/components/schemas/MakeMoveData'
+      x-ack:
+        $ref: '#/components/schemas/MakeMoveAckData'
     move_made:
-      description: ''
       name: move_made
+      description: ''
       payload:
         $ref: '#/components/schemas/MoveMadeData'
-        deprecated: false
+    game_drawn:
+      name: game_drawn
+      description: ''
+      payload:
+        $ref: '#/components/schemas/GameDrawnData'
+    game_won:
+      name: game_won
+      description: ''
+      payload:
+        $ref: '#/components/schemas/GameWonData'
   schemas:
+    NoSpec:
+      description: Specification is not provided
     GameCreatedData:
+      title: GameCreatedData
+      type: object
       properties:
         game_id:
+          title: Game Id
           description: The game id
           example: 1
-          title: Game Id
           type: integer
       required:
       - game_id
-      title: GameCreatedData
-      type: object
-    GameDrawnData:
-      properties: {}
-      title: GameDrawnData
-      type: object
-    GameWonData:
-      properties:
-        winner:
-          description: The winner
-          example: X
-          title: Winner
-          type: string
-      required:
-      - winner
-      title: GameWonData
-      type: object
-    MakeMoveAckData:
-      properties:
-        error:
-          description: The error message
-          example: Invalid move
-          title: Error
-          type: string
-      title: MakeMoveAckData
-      type: object
     MakeMoveData:
+      title: MakeMoveData
+      type: object
       properties:
         game_id:
+          title: Game Id
           description: The game id
           example: 1
-          title: Game Id
           type: integer
         x:
+          title: X
           description: The x coordinate
           example: 0
-          title: X
           type: integer
         y:
+          title: Y
           description: The y coordinate
           example: 0
-          title: Y
           type: integer
       required:
       - game_id
       - x
       - y
-      title: MakeMoveData
+    MakeMoveAckData:
+      title: MakeMoveAckData
       type: object
+      properties:
+        error:
+          title: Error
+          description: The error message
+          example: Invalid move
+          type: string
     MoveMadeData:
+      title: MoveMadeData
+      type: object
       properties:
         board:
+          title: Board
           description: The game board
           example:
           - - X
@@ -132,40 +162,31 @@ components:
           - - ''
             - ''
             - O
+          type: array
           items:
+            type: array
             items:
               type: string
-            type: array
-          title: Board
-          type: array
         turn:
+          title: Turn
           description: The current turn
           example: X
-          title: Turn
           type: string
       required:
       - board
       - turn
-      title: MoveMadeData
+    GameDrawnData:
+      title: GameDrawnData
       type: object
-    NoSpec:
-      deprecated: false
-      description: Specification is not provided
-info:
-  description: 'Tick-Tack-Toe Game API
-
-    <br/> AsyncAPI currently does not support Socket.IO binding and Web Socket like
-    syntax used for now.
-
-    In order to add support for Socket.IO ACK value, AsyncAPI is extended with with
-    x-ack keyword.
-
-    This documentation should **NOT** be used for generating code due to these limitations.
-
-    '
-  title: Tick-Tack-Toe API
-  version: 1.0.0
-servers:
-  TICK_TACK_TOE_BACKEND:
-    protocol: socketio
-    url: http://localhost:5000
+      properties: {}
+    GameWonData:
+      title: GameWonData
+      type: object
+      properties:
+        winner:
+          title: Winner
+          description: The winner
+          example: X
+          type: string
+      required:
+      - winner

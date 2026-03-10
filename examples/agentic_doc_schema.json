@@ -1,5 +1,5 @@
 {
-  "asyncapi_version": "2.5.0",
+  "asyncapi_version": "3.1.0",
   "events": [
     {
       "ack_schema": {
@@ -21,13 +21,13 @@
           "request_id"
         ],
         "title": "AskAssistantResponse",
-        "type": "object"
+        "type": "object",
+        "x-component-ref": "#/components/schemas/AskAssistantResponse"
       },
       "ack_schema_component": "AskAssistantResponse",
       "description": "Accept a user prompt and start asynchronous assistant processing.",
       "direction": "client_to_server",
       "input_schema": {
-        "deprecated": false,
         "description": "Request model for sending a user prompt to the assistant.",
         "properties": {
           "conversation_id": {
@@ -52,7 +52,8 @@
       "input_schema_component": "AskAssistantRequest",
       "message_component": "Ask_Assistant",
       "name": "ask_assistant",
-      "namespace": "/"
+      "namespace": "/",
+      "operation_id": "receive_ask_assistant"
     },
     {
       "description": "Server push event sent when the assistant has produced a reply.",
@@ -60,8 +61,8 @@
       "message_component": "assistant_reply",
       "name": "assistant_reply",
       "namespace": "/",
+      "operation_id": "send_assistant_reply",
       "output_schema": {
-        "deprecated": false,
         "description": "Server push event containing the assistant's generated reply.",
         "properties": {
           "message": {
@@ -88,14 +89,14 @@
   ],
   "format": "sio-asyncapi-agent-schema",
   "info": {
-    "description": "Demo server that exports both AsyncAPI and agent-friendly schemas.\n<br/> AsyncAPI currently does not support Socket.IO binding and Web Socket like syntax used for now.\nIn order to add support for Socket.IO ACK value, AsyncAPI is extended with with x-ack keyword.\nThis documentation should **NOT** be used for generating code due to these limitations.\n",
+    "description": "Demo server that exports both AsyncAPI and agent-friendly schemas.\n<br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in the custom `x-ack` message extension.\nSocket.IO-specific transport details may still require application-level interpretation.\n",
     "title": "Agent Export Demo",
     "version": "1.0.0"
   },
   "servers": {
     "AGENT_EXPORT_DEMO": {
-      "protocol": "socketio",
-      "url": "http://localhost:5000"
+      "host": "localhost:5000",
+      "protocol": "socketio"
     }
   },
   "version": "1.0"

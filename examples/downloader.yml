@@ -1,20 +1,66 @@
-asyncapi: 2.5.0
+asyncapi: 3.1.0
+info:
+  title: Downloader API
+  version: 1.0.0
+  description: 'Server downloader API
+
+    <br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in
+    the custom `x-ack` message extension.
+
+    Socket.IO-specific transport details may still require application-level interpretation.
+
+    '
+servers:
+  DOWNLOADER_BACKEND:
+    host: localhost:5000
+    protocol: socketio
 channels:
-  /:
-    publish:
-      message:
-        oneOf:
-        - $ref: '#/components/messages/Download_File'
-        - $ref: '#/components/messages/Get_Download_List'
-    subscribe:
-      message:
-        oneOf:
-        - $ref: '#/components/messages/current_list'
-    x-handlers:
-      disconnect: disconnect
+  root:
+    address: /
+    messages:
+      Download_File:
+        $ref: '#/components/messages/Download_File'
+      Get_Download_List:
+        $ref: '#/components/messages/Get_Download_List'
+      current_list:
+        $ref: '#/components/messages/current_list'
+operations:
+  receive_download_file:
+    action: receive
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/Download_File'
+    description: '
+
+      Except request to download file from URL and save to server''s file system.
+      </br>
+
+      Requests are **not** executed immediately, but added to queue.
+
+      '
+  receive_get_download_list:
+    action: receive
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/Get_Download_List'
+    description: '
+
+      Get current list of files to download
+
+      '
+  send_current_list:
+    action: send
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/current_list'
+    description: Current list of files to download
 components:
   messages:
     Download_File:
+      name: download_file
       description: '
 
         Except request to download file from URL and save to server''s file system.
@@ -23,141 +69,93 @@ components:
         Requests are **not** executed immediately, but added to queue.
 
         '
-      name: download_file
       payload:
         $ref: '#/components/schemas/DownloadFileRequest'
-        deprecated: false
       x-ack:
-        definitions:
-          Data:
-            properties:
-              is_accepted:
-                default: true
-                title: Is Accepted
-                type: boolean
-            title: Data
-            type: object
-        description: Response model for download file
-        properties:
-          data:
-            $ref: '#/components/schemas/DownloadAccepted/definitions/Data'
-          error:
-            description: Error message if any
-            example: Invalid request
-            title: Error
-            type: string
-          success:
-            default: true
-            description: Success status
-            title: Success
-            type: boolean
-        required:
-        - data
-        title: DownloadAccepted
-        type: object
+        $ref: '#/components/schemas/DownloadAccepted'
     Get_Download_List:
+      name: get_download_list
       description: '
 
         Get current list of files to download
 
         '
-      name: get_download_list
     current_list:
-      description: Current list of files to download
       name: current_list
+      description: Current list of files to download
       payload:
         $ref: '#/components/schemas/DownloaderQueueEmitModel'
-        deprecated: false
   schemas:
-    DownloadAccepted:
-      definitions:
-        Data:
-          properties:
-            is_accepted:
-              default: true
-              title: Is Accepted
-              type: boolean
-          title: Data
-          type: object
-      description: Response model for download file
-      properties:
-        data:
-          $ref: '#/components/schemas/DownloadAccepted/definitions/Data'
-        error:
-          description: Error message if any
-          example: Invalid request
-          title: Error
-          type: string
-        success:
-          default: true
-          description: Success status
-          title: Success
-          type: boolean
-      required:
-      - data
-      title: DownloadAccepted
-      type: object
+    NoSpec:
+      description: Specification is not provided
     DownloadFileRequest:
+      title: DownloadFileRequest
       description: Request model for download file
+      type: object
       properties:
-        check_hash:
-          default: false
-          title: Check Hash
-          type: boolean
-        location:
-          description: Destination local to file system; should be an absolute path
-          example: /tmp/tree.jpg
-          format: path
-          title: Location
-          type: string
         url:
+          title: Url
           description: URL to download
           example: https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg
-          format: uri
-          maxLength: 65536
           minLength: 1
-          title: Url
+          maxLength: 65536
+          format: uri
           type: string
+        location:
+          title: Location
+          description: Destination local to file system; should be an absolute path
+          example: /tmp/tree.jpg
+          type: string
+          format: path
+        check_hash:
+          title: Check Hash
+          default: false
+          type: boolean
       required:
       - url
       - location
-      title: DownloadFileRequest
+    DownloadAccepted:
+      title: DownloadAccepted
+      description: Response model for download file
       type: object
+      properties:
+        success:
+          title: Success
+          description: Success status
+          default: true
+          type: boolean
+        error:
+          title: Error
+          description: Error message if any
+          example: Invalid request
+          type: string
+        data:
+          $ref: '#/components/schemas/DownloadAccepted/definitions/Data'
+      required:
+      - data
+      definitions:
+        Data:
+          title: Data
+          type: object
+          properties:
+            is_accepted:
+              title: Is Accepted
+              default: true
+              type: boolean
     DownloaderQueueEmitModel:
+      title: DownloaderQueueEmitModel
       description: Emit model for current list
+      type: object
       properties:
         downloader_queue:
+          title: Downloader Queue
           description: List of URLs to download
           example: '[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]'
-          items:
-            format: uri
-            maxLength: 65536
-            minLength: 1
-            type: string
-          title: Downloader Queue
           type: array
+          items:
+            type: string
+            minLength: 1
+            maxLength: 65536
+            format: uri
       required:
       - downloader_queue
-      title: DownloaderQueueEmitModel
-      type: object
-    NoSpec:
-      deprecated: false
-      description: Specification is not provided
-info:
-  description: 'Server downloader API
-
-    <br/> AsyncAPI currently does not support Socket.IO binding and Web Socket like
-    syntax used for now.
-
-    In order to add support for Socket.IO ACK value, AsyncAPI is extended with with
-    x-ack keyword.
-
-    This documentation should **NOT** be used for generating code due to these limitations.
-
-    '
-  title: Downloader API
-  version: 1.0.0
-servers:
-  DOWNLOADER_BACKEND:
-    protocol: socketio
-    url: http://localhost:5000
