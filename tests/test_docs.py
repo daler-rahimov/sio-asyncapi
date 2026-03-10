@@ -11,6 +11,10 @@ from sio_asyncapi.application import AsyncAPISocketIO
 from .fixtures import socketio
 
 
+def get_doc_dict():
+    return socketio.asyncapi_doc.dict(by_alias=True, exclude_none=True)
+
+
 def test_validate_asycnapi_doc():
     if shutil.which("asyncapi") is None:
         return
@@ -24,6 +28,95 @@ def test_validate_asycnapi_doc():
         f.write(doc_str)
     # run and check external process asyncapi-cli examples/downloader.yml
     check_call(["asyncapi", "validate", FILE_NAME], cwd=pathlib.Path(__file__).parent)
+
+
+def test_handler_docstring_is_used_as_message_description():
+    doc = get_doc_dict()
+
+    assert doc["components"]["messages"]["Download_File"]["description"] == (
+        "\n"
+        "Except request to download file from URL and save to server's file system. </br>\n"
+        "Requests are **not** executed immediately, but added to queue.\n"
+    )
+
+
+def test_payload_schema_is_generated_from_pydantic_model():
+    doc = get_doc_dict()
+
+    assert doc["components"]["messages"]["Download_File"]["payload"] == {
+        "$ref": "#/components/schemas/DownloadFileRequest",
+        "deprecated": False,
+    }
+    assert doc["components"]["schemas"]["DownloadFileRequest"] == {
+        "description": "Request model for download file",
+        "properties": {
+            "check_hash": {
+                "default": False,
+                "title": "Check Hash",
+                "type": "boolean",
+            },
+            "location": {
+                "description": "Destination local to file system; should be an absolute path",
+                "example": "/tmp/tree.jpg",
+                "format": "path",
+                "title": "Location",
+                "type": "string",
+            },
+            "url": {
+                "description": "URL to download",
+                "example": "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg",
+                "format": "uri",
+                "maxLength": 65536,
+                "minLength": 1,
+                "title": "Url",
+                "type": "string",
+            },
+        },
+        "required": ["url", "location"],
+        "title": "DownloadFileRequest",
+        "type": "object",
+    }
+
+
+def test_ack_schema_is_generated_from_pydantic_model():
+    doc = get_doc_dict()
+
+    assert doc["components"]["messages"]["Download_File"]["x-ack"] == {
+        "definitions": {
+            "Data": {
+                "properties": {
+                    "is_accepted": {
+                        "default": True,
+                        "title": "Is Accepted",
+                        "type": "boolean",
+                    }
+                },
+                "title": "Data",
+                "type": "object",
+            }
+        },
+        "description": "Response model for download file",
+        "properties": {
+            "data": {
+                "$ref": "#/components/schemas/DownloadAccepted/definitions/Data"
+            },
+            "error": {
+                "description": "Error message if any",
+                "example": "Invalid request",
+                "title": "Error",
+                "type": "string",
+            },
+            "success": {
+                "default": True,
+                "description": "Success status",
+                "title": "Success",
+                "type": "boolean",
+            },
+        },
+        "required": ["data"],
+        "title": "DownloadAccepted",
+        "type": "object",
+    }
 
 
 def test_default_init_does_not_share_mutable_state():
@@ -77,8 +170,3 @@ def test_docs_are_namespace_aware_for_same_event_name():
     assert sio.asyncapi_doc.channels["/test"].subscribe.message.__dict__["oneOf"] == [
         {"$ref": "#/components/messages/Test_status"}
     ]
-
-# TODO:
-# - [ ] check docstring used as description in AsyncAPI spec
-# - [ ] check payload schema generated from pydantic models correctly
-# - [ ] check x-ack schema generated from pydantic models correctly
