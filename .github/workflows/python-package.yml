@@ -68,7 +68,13 @@ jobs:
         run: poetry run pytest tests -v --cov=./src/sio_asyncapi --cov-report=xml:./coverage.xml --cov-report=term-missing
 
       - name: Upload coverage to Codecov
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
           files: ./coverage.xml
+
+      - name: Skip Codecov upload when token is unavailable
+        if: ${{ secrets.CODECOV_TOKEN == '' }}
+        run: echo "Skipping Codecov upload because CODECOV_TOKEN is not configured."
