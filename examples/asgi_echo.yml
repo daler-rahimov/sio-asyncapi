@@ -1,0 +1,89 @@
+asyncapi: 3.1.0
+info:
+  title: ASGI Echo API
+  version: 1.0.0
+  description: 'Minimal asyncio Socket.IO server
+
+    <br/> This specification targets AsyncAPI 3.1. Socket.IO ACKs are modeled as operation
+    `reply` messages, with the custom `x-ack` extension kept as an alias.
+
+    Socket.IO-specific transport details may still require application-level interpretation.
+
+    '
+servers:
+  ASGI_ECHO:
+    host: localhost:8000
+    protocol: socketio
+channels:
+  root:
+    address: /
+    messages:
+      Echo:
+        $ref: '#/components/messages/Echo'
+      Echo_Ack:
+        $ref: '#/components/messages/Echo_Ack'
+operations:
+  receive_echo:
+    action: receive
+    channel:
+      $ref: '#/channels/root'
+    messages:
+    - $ref: '#/channels/root/messages/Echo'
+    description: Echo the payload back as a Socket.IO ACK.
+    reply:
+      channel:
+        $ref: '#/channels/root'
+      messages:
+      - $ref: '#/channels/root/messages/Echo_Ack'
+components:
+  messages:
+    Echo:
+      name: echo
+      description: Echo the payload back as a Socket.IO ACK.
+      payload:
+        $ref: '#/components/schemas/EchoIn'
+      examples:
+      - name: example
+        payload:
+          text: hello
+      x-ack:
+        $ref: '#/components/schemas/EchoOut'
+    Echo_Ack:
+      name: echo_ack
+      description: Socket.IO ACK for echo
+      payload:
+        $ref: '#/components/schemas/EchoOut'
+      examples:
+      - name: example
+        payload:
+          text: hello
+  schemas:
+    NoSpec:
+      $schema: https://json-schema.org/draft/2020-12/schema
+      description: Specification is not provided
+    EchoIn:
+      $schema: https://json-schema.org/draft/2020-12/schema
+      properties:
+        text:
+          description: Text to echo
+          examples:
+          - hello
+          title: Text
+          type: string
+      required:
+      - text
+      title: EchoIn
+      type: object
+    EchoOut:
+      $schema: https://json-schema.org/draft/2020-12/schema
+      properties:
+        text:
+          description: Echoed text
+          examples:
+          - hello
+          title: Text
+          type: string
+      required:
+      - text
+      title: EchoOut
+      type: object

@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 from urllib.parse import urlsplit
 
 import yaml
-from sio_asyncapi._pydantic import BaseModel
+from pydantic import BaseModel
 
 from sio_asyncapi._compat import is_pydantic_model_type, model_schema
 
@@ -16,9 +16,10 @@ logger = logging.getLogger(__name__)
 
 NotProvidedType = Literal["NotProvided"]
 LIFECYCLE_EVENTS = frozenset({"connect", "disconnect"})
+JSON_SCHEMA_2020_12 = "https://json-schema.org/draft/2020-12/schema"
 
 add_description = """
-<br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in the custom `x-ack` message extension.
+<br/> This specification targets AsyncAPI 3.1. Socket.IO ACKs are modeled as operation `reply` messages, with the custom `x-ack` extension kept as an alias.
 Socket.IO-specific transport details may still require application-level interpretation.
 """
 
@@ -26,6 +27,7 @@ DEFAULT_COMPONENTS = {
     "messages": {},
     "schemas": {
         "NoSpec": {
+            "$schema": JSON_SCHEMA_2020_12,
             "description": "Specification is not provided",
         }
     },
@@ -220,6 +222,68 @@ class AsyncAPIDoc:
             }
         return channel_name
 
+    def _example_to_examples(self, node: Any) -> Any:
+        """Rewrite deprecated JSON Schema `example` keys to 2020-12 `examples`."""
+        if isinstance(node, list):
+            return [self._example_to_examples(item) for item in node]
+        if not isinstance(node, dict):
+            return node
+        converted = {
+            key: self._example_to_examples(value)
+            for key, value in node.items()
+            if key != "example"
+        }
+        if "example" in node and "examples" not in converted:
+            converted["examples"] = [self._example_to_examples(node["example"])]
+        return converted
+
+    def _normalize_json_schema(self, schema: Dict[str, Any]) -> Dict[str, Any]:
+        """Mark a component schema as JSON Schema 2020-12."""
+        schema = self._example_to_examples(schema)
+        schema.pop("$schema", None)
+        return {"$schema": JSON_SCHEMA_2020_12, **schema}
+
+    def _example_from_schema(self, schema: Optional[Dict[str, Any]]) -> Any:
+        """Build a sample payload from JSON Schema examples."""
+        if not isinstance(schema, dict):
+            return None
+        if schema.get("examples"):
+            return schema["examples"][0]
+        if schema.get("example") is not None:
+            return schema["example"]
+        properties = schema.get("properties")
+        if not isinstance(properties, dict) or not properties:
+            return None
+        sample: Dict[str, Any] = {}
+        for name, prop in properties.items():
+            if not isinstance(prop, dict):
+                continue
+            if "$ref" in prop:
+                target = self._lookup_ref(prop["$ref"], {
+                    "components": self.components,
+                })
+                nested = self._example_from_schema(target)
+                if nested is not None:
+                    sample[name] = nested
+                continue
+            nested = self._example_from_schema(prop)
+            if nested is not None:
+                sample[name] = nested
+        return sample or None
+
+    def _message_examples(
+        self,
+        model: Optional[Union[Type[BaseModel], NotProvidedType]],
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Return AsyncAPI message examples derived from a Pydantic model."""
+        if not is_pydantic_model_type(model):
+            return None
+        raw_schema = self._example_to_examples(model_schema(model))
+        payload = self._example_from_schema(raw_schema)
+        if payload is None:
+            return None
+        return [{"name": "example", "payload": payload}]
+
     def _choose_schema_name(
         self,
         preferred: str,
@@ -246,6 +310,7 @@ class AsyncAPIDoc:
 
     def _put_schema(self, name: str, schema: Dict[str, Any]) -> str:
         """Store a schema component, reusing equal schemas and rejecting collisions."""
+        schema = self._normalize_json_schema(schema)
         chosen = self._choose_schema_name(name, schema)
         self.components["schemas"][chosen] = schema
         return chosen
@@ -295,7 +360,7 @@ class AsyncAPIDoc:
             flattened = self._hoist_nested_schemas(def_schema, def_name)
             component_name = self._choose_schema_name(
                 def_name,
-                flattened,
+                self._normalize_json_schema(copy.deepcopy(flattened)),
                 parent_name=parent_name,
             )
             name_map[def_name] = component_name
@@ -331,6 +396,7 @@ class AsyncAPIDoc:
         event_name: str,
         description: str,
         payload: Optional[Dict[str, str]],
+        examples: Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         """Store a reusable message component and attach it to a channel."""
         message: Dict[str, Any] = {
@@ -339,6 +405,8 @@ class AsyncAPIDoc:
         }
         if payload is not None:
             message["payload"] = payload
+        if examples:
+            message["examples"] = examples
 
         self.components["messages"][message_component] = message
         self.channels[channel_name]["messages"][message_component] = {
@@ -373,14 +441,13 @@ class AsyncAPIDoc:
         }
         if payload_ref is not None:
             message["payload"] = payload_ref
+        examples = self._message_examples(payload_model)
+        if examples:
+            message["examples"] = examples
 
         is_lifecycle = name in LIFECYCLE_EVENTS
         if is_lifecycle:
             message["x-lifecycle"] = True
-        else:
-            ack_ref = self._schema_ref(ack_data_model)
-            if ack_ref is not None:
-                message["x-ack"] = ack_ref
 
         self.components["messages"][message_component] = message
         self.channels[channel_name]["messages"][message_component] = {
@@ -403,6 +470,29 @@ class AsyncAPIDoc:
             operation["description"] = description
         if is_lifecycle:
             operation["x-lifecycle"] = name
+        elif ack_data_model is not None:
+            ack_ref = self._schema_ref(ack_data_model)
+            if ack_ref is not None:
+                message["x-ack"] = copy.deepcopy(ack_ref)
+                ack_component = f"{message_component}_Ack"
+                ack_message: Dict[str, Any] = {
+                    "name": f"{name}_ack",
+                    "description": f"Socket.IO ACK for {name}",
+                    "payload": copy.deepcopy(ack_ref),
+                }
+                ack_examples = self._message_examples(ack_data_model)
+                if ack_examples:
+                    ack_message["examples"] = ack_examples
+                self.components["messages"][ack_component] = ack_message
+                self.channels[channel_name]["messages"][ack_component] = {
+                    "$ref": f"#/components/messages/{ack_component}"
+                }
+                operation["reply"] = {
+                    "channel": {"$ref": f"#/channels/{channel_name}"},
+                    "messages": [{
+                        "$ref": f"#/channels/{channel_name}/messages/{ack_component}"
+                    }],
+                }
 
         self.operations[operation_name] = operation
 
@@ -429,6 +519,7 @@ class AsyncAPIDoc:
             event_name=event,
             description=clean_description,
             payload=payload_ref,
+            examples=self._message_examples(payload_model),
         )
 
         operation_name = self.operation_component_name(
@@ -531,6 +622,8 @@ class AsyncAPIDoc:
             }
             if message.get("x-lifecycle") or operation.get("x-lifecycle"):
                 event["lifecycle"] = operation.get("x-lifecycle") or message.get("name")
+            if message.get("examples"):
+                event["examples"] = message["examples"]
 
             payload = message.get("payload")
             if payload is not None:
@@ -547,6 +640,12 @@ class AsyncAPIDoc:
 
             if direction == "client_to_server":
                 ack_schema = message.get("x-ack")
+                if ack_schema is None:
+                    reply = operation.get("reply") or {}
+                    reply_messages = reply.get("messages") or []
+                    if reply_messages:
+                        ack_message = self._resolve_refs(reply_messages[0], doc_dict)
+                        ack_schema = ack_message.get("payload") if isinstance(ack_message, dict) else None
                 if ack_schema is not None:
                     event["ack_schema"] = self._resolve_refs(ack_schema, doc_dict)
                     if isinstance(event["ack_schema"], dict) and event["ack_schema"].get(

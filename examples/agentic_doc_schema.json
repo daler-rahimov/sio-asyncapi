@@ -3,6 +3,7 @@
   "events": [
     {
       "ack_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Ack model returned immediately after a prompt is accepted.",
         "properties": {
           "accepted": {
@@ -27,7 +28,16 @@
       "ack_schema_component": "AskAssistantResponse",
       "description": "Accept a user prompt and start asynchronous assistant processing.",
       "direction": "client_to_server",
+      "examples": [
+        {
+          "name": "example",
+          "payload": {
+            "conversation_id": "chat-123"
+          }
+        }
+      ],
       "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Request model for sending a user prompt to the assistant.",
         "properties": {
           "conversation_id": {
@@ -41,7 +51,9 @@
             ],
             "default": null,
             "description": "Conversation identifier for multi-turn chats",
-            "example": "chat-123",
+            "examples": [
+              "chat-123"
+            ],
             "title": "Conversation Id"
           },
           "prompt": {
@@ -71,6 +83,7 @@
       "namespace": "/",
       "operation_id": "send_assistant_reply",
       "output_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Server push event containing the assistant's generated reply.",
         "properties": {
           "message": {
@@ -97,7 +110,7 @@
   ],
   "format": "sio-asyncapi-agent-schema",
   "info": {
-    "description": "Demo server that exports both AsyncAPI and agent-friendly schemas.\n<br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in the custom `x-ack` message extension.\nSocket.IO-specific transport details may still require application-level interpretation.\n",
+    "description": "Demo server that exports both AsyncAPI and agent-friendly schemas.\n<br/> This specification targets AsyncAPI 3.1. Socket.IO ACKs are modeled as operation `reply` messages, with the custom `x-ack` extension kept as an alias.\nSocket.IO-specific transport details may still require application-level interpretation.\n",
     "title": "Agent Export Demo",
     "version": "1.0.0"
   },

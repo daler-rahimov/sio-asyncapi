@@ -24,8 +24,8 @@ socketio = AsyncAPISocketIO(
 
 class UserSignUpRequest(BaseModel):
     """Request model for user sign up"""
-    email: EmailStr = Field(..., description="User email", example="bob@gmail.com")
-    password: str = Field(..., description="User password", example="123456")
+    email: EmailStr = Field(..., description="User email", examples=["bob@gmail.com"])
+    password: str = Field(..., description="User password", examples=["123456"])
 
 
 class UserSignUpResponse(BaseModel):
@@ -34,7 +34,7 @@ class UserSignUpResponse(BaseModel):
     error: Optional[str] = Field(
         None,
         description="Error message if any",
-        example="Invalid request",
+        examples=["Invalid request"],
     )
 
 

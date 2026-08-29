@@ -4,8 +4,8 @@ info:
   version: 1.0.0
   description: 'Server downloader API
 
-    <br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in
-    the custom `x-ack` message extension.
+    <br/> This specification targets AsyncAPI 3.1. Socket.IO ACKs are modeled as operation
+    `reply` messages, with the custom `x-ack` extension kept as an alias.
 
     Socket.IO-specific transport details may still require application-level interpretation.
 
@@ -20,6 +20,8 @@ channels:
     messages:
       Download_File:
         $ref: '#/components/messages/Download_File'
+      Download_File_Ack:
+        $ref: '#/components/messages/Download_File_Ack'
       Get_Download_List:
         $ref: '#/components/messages/Get_Download_List'
       current_list:
@@ -39,6 +41,11 @@ operations:
       Requests are **not** executed immediately, but added to queue.
 
       '
+    reply:
+      channel:
+        $ref: '#/channels/root'
+      messages:
+      - $ref: '#/channels/root/messages/Download_File_Ack'
   receive_get_download_list:
     action: receive
     channel:
@@ -71,8 +78,22 @@ components:
         '
       payload:
         $ref: '#/components/schemas/DownloadFileRequest'
+      examples:
+      - name: example
+        payload:
+          url: https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg
+          location: /tmp/tree.jpg
       x-ack:
         $ref: '#/components/schemas/DownloadAccepted'
+    Download_File_Ack:
+      name: download_file_ack
+      description: Socket.IO ACK for download_file
+      payload:
+        $ref: '#/components/schemas/DownloadAccepted'
+      examples:
+      - name: example
+        payload:
+          error: Invalid request
     Get_Download_List:
       name: get_download_list
       description: '
@@ -85,25 +106,33 @@ components:
       description: Current list of files to download
       payload:
         $ref: '#/components/schemas/DownloaderQueueEmitModel'
+      examples:
+      - name: example
+        payload:
+          downloader_queue: '[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]'
   schemas:
     NoSpec:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Specification is not provided
     DownloadFileRequest:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Request model for download file
       properties:
         url:
           description: URL to download
-          example: https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg
           format: uri
           minLength: 1
           title: Url
           type: string
+          examples:
+          - https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg
         location:
           description: Destination local to file system; should be an absolute path
-          example: /tmp/tree.jpg
           format: path
           title: Location
           type: string
+          examples:
+          - /tmp/tree.jpg
         check_hash:
           anyOf:
           - type: boolean
@@ -116,6 +145,7 @@ components:
       title: DownloadFileRequest
       type: object
     Data:
+      $schema: https://json-schema.org/draft/2020-12/schema
       properties:
         is_accepted:
           default: true
@@ -124,6 +154,7 @@ components:
       title: Data
       type: object
     DownloadAccepted:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Response model for download file
       properties:
         success:
@@ -137,8 +168,9 @@ components:
           - type: 'null'
           default: null
           description: Error message if any
-          example: Invalid request
           title: Error
+          examples:
+          - Invalid request
         data:
           $ref: '#/components/schemas/Data'
       required:
@@ -146,17 +178,19 @@ components:
       title: DownloadAccepted
       type: object
     DownloaderQueueEmitModel:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Emit model for current list
       properties:
         downloader_queue:
           description: List of URLs to download
-          example: '[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]'
           items:
             format: uri
             minLength: 1
             type: string
           title: Downloader Queue
           type: array
+          examples:
+          - '[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]'
       required:
       - downloader_queue
       title: DownloaderQueueEmitModel

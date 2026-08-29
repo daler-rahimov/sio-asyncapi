@@ -4,8 +4,8 @@ info:
   version: 1.0.0
   description: 'Demo server that exports both AsyncAPI and agent-friendly schemas.
 
-    <br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in
-    the custom `x-ack` message extension.
+    <br/> This specification targets AsyncAPI 3.1. Socket.IO ACKs are modeled as operation
+    `reply` messages, with the custom `x-ack` extension kept as an alias.
 
     Socket.IO-specific transport details may still require application-level interpretation.
 
@@ -20,6 +20,8 @@ channels:
     messages:
       Ask_Assistant:
         $ref: '#/components/messages/Ask_Assistant'
+      Ask_Assistant_Ack:
+        $ref: '#/components/messages/Ask_Assistant_Ack'
       assistant_reply:
         $ref: '#/components/messages/assistant_reply'
 operations:
@@ -30,6 +32,11 @@ operations:
     messages:
     - $ref: '#/channels/root/messages/Ask_Assistant'
     description: Accept a user prompt and start asynchronous assistant processing.
+    reply:
+      channel:
+        $ref: '#/channels/root'
+      messages:
+      - $ref: '#/channels/root/messages/Ask_Assistant_Ack'
   send_assistant_reply:
     action: send
     channel:
@@ -44,7 +51,16 @@ components:
       description: Accept a user prompt and start asynchronous assistant processing.
       payload:
         $ref: '#/components/schemas/AskAssistantRequest'
+      examples:
+      - name: example
+        payload:
+          conversation_id: chat-123
       x-ack:
+        $ref: '#/components/schemas/AskAssistantResponse'
+    Ask_Assistant_Ack:
+      name: ask_assistant_ack
+      description: Socket.IO ACK for ask_assistant
+      payload:
         $ref: '#/components/schemas/AskAssistantResponse'
     assistant_reply:
       name: assistant_reply
@@ -53,8 +69,10 @@ components:
         $ref: '#/components/schemas/AssistantReply'
   schemas:
     NoSpec:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Specification is not provided
     AskAssistantRequest:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Request model for sending a user prompt to the assistant.
       properties:
         prompt:
@@ -67,13 +85,15 @@ components:
           - type: 'null'
           default: null
           description: Conversation identifier for multi-turn chats
-          example: chat-123
           title: Conversation Id
+          examples:
+          - chat-123
       required:
       - prompt
       title: AskAssistantRequest
       type: object
     AskAssistantResponse:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Ack model returned immediately after a prompt is accepted.
       properties:
         accepted:
@@ -90,6 +110,7 @@ components:
       title: AskAssistantResponse
       type: object
     AssistantReply:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Server push event containing the assistant's generated reply.
       properties:
         request_id:

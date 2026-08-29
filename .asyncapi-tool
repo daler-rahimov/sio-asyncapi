@@ -9,6 +9,7 @@ filters:
   technology:
   - Socket.IO
   - Flask
+  - asyncio
   categories:
   - code-first
   - api

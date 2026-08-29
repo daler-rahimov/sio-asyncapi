@@ -1,81 +1,54 @@
+"""Pydantic v2 helpers used across the library."""
 import json
 from typing import Any, Type
 
-from pydantic import BaseModel as BaseModelV2
-from pydantic import ValidationError as ValidationErrorV2
+from pydantic import BaseModel, ValidationError
 
-from sio_asyncapi._pydantic import BaseModel as BaseModelV1Compat
-from sio_asyncapi._pydantic import ValidationError as ValidationErrorV1Compat
-
-PYDANTIC_MODEL_TYPES = tuple(
-    model_type
-    for model_type in (BaseModelV2, BaseModelV1Compat)
-    if isinstance(model_type, type)
-)
-
-PYDANTIC_VALIDATION_ERRORS = tuple(
-    error_type
-    for error_type in (ValidationErrorV2, ValidationErrorV1Compat)
-    if isinstance(error_type, type)
-)
+PYDANTIC_VALIDATION_ERRORS = (ValidationError,)
 
 
 def is_pydantic_model_type(model: Any) -> bool:
-    """Return True when the value is a supported Pydantic model class."""
-    return isinstance(model, type) and issubclass(model, PYDANTIC_MODEL_TYPES)
+    """Return True when the value is a Pydantic v2 model class."""
+    return isinstance(model, type) and issubclass(model, BaseModel)
 
 
 def is_pydantic_model_instance(value: Any) -> bool:
-    """Return True when the value is a supported Pydantic model instance."""
-    return isinstance(value, PYDANTIC_MODEL_TYPES)
+    """Return True when the value is a Pydantic v2 model instance."""
+    return isinstance(value, BaseModel)
 
 
-def model_validate(model: Type[Any], data: Any) -> Any:
-    """Validate data against either a Pydantic v1 or v2 model class."""
-    if hasattr(model, "model_validate"):
-        return model.model_validate(data)
-    return model.parse_obj(data)
+def model_validate(model: Type[BaseModel], data: Any) -> Any:
+    """Validate data against a Pydantic v2 model class."""
+    return model.model_validate(data)
 
 
-def model_schema(model: Type[Any]) -> dict[str, Any]:
-    """Return a JSON schema for either a Pydantic v1 or v2 model class."""
-    if hasattr(model, "model_json_schema"):
-        return model.model_json_schema()
-    return model.schema()
+def model_schema(model: Type[BaseModel]) -> dict[str, Any]:
+    """Return a JSON Schema 2020-12 document for a Pydantic v2 model."""
+    return model.model_json_schema()
 
 
 def model_dump(instance: Any, **kwargs: Any) -> dict[str, Any]:
-    """Dump a model to a Python dict for either Pydantic major version."""
-    if hasattr(instance, "model_dump"):
-        return instance.model_dump(**kwargs)
-    return instance.dict(**kwargs)
+    """Dump a model to a Python dict."""
+    return instance.model_dump(**kwargs)
 
 
 def model_dump_jsonable(instance: Any) -> dict[str, Any]:
     """Dump a model to a JSON-compatible dict for Socket.IO payloads."""
-    if hasattr(instance, "model_dump"):
-        return instance.model_dump(mode="json")
-    return json.loads(instance.json())
+    return instance.model_dump(mode="json")
 
 
 def model_dump_json(instance: Any, **kwargs: Any) -> str:
-    """Dump a model to JSON for either Pydantic major version."""
-    if hasattr(instance, "model_dump_json"):
-        return instance.model_dump_json(**kwargs)
-    return instance.json(**kwargs)
+    """Dump a model to a JSON string."""
+    return instance.model_dump_json(**kwargs)
 
 
 def field_schema_extra(**extra: Any) -> dict[str, Any]:
-    """Return Field kwargs that attach JSON Schema extras on Pydantic v1 and v2."""
-    from pydantic import VERSION
-
-    if str(VERSION).startswith("2"):
-        return {"json_schema_extra": extra}
-    return extra
+    """Return Field kwargs that attach JSON Schema extras (Pydantic v2)."""
+    return {"json_schema_extra": extra}
 
 
 class BaseValidationError(Exception):
-    """Version-agnostic wrapper around a Pydantic validation error."""
+    """Wrapper around a Pydantic validation error."""
 
     def __init__(self, parent: Exception):
         super().__init__(str(parent))

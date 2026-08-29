@@ -64,6 +64,7 @@ def test_payload_schema_is_generated_from_pydantic_model():
     assert schema["description"] == "Request model for download file"
     assert schema["title"] == "DownloadFileRequest"
     assert schema["type"] == "object"
+    assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert schema["required"] == ["url", "location"]
 
     check_hash = schema["properties"]["check_hash"]
@@ -73,29 +74,37 @@ def test_payload_schema_is_generated_from_pydantic_model():
 
     location = schema["properties"]["location"]
     assert location["description"] == "Destination local to file system; should be an absolute path"
-    assert location["example"] == "/tmp/tree.jpg"
+    assert location["examples"] == ["/tmp/tree.jpg"]
     assert location["format"] == "path"
     assert schema_has_type(location, "string")
 
     url = schema["properties"]["url"]
     assert url["description"] == "URL to download"
-    assert url["example"] == "https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg"
+    assert url["examples"] == ["https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg"]
     assert url["format"] == "uri"
     assert url["title"] == "Url"
     assert schema_has_type(url, "string")
 
 
-def test_ack_schema_is_generated_as_x_ack_extension():
+def test_ack_schema_is_generated_as_reply_and_x_ack_alias():
     doc = get_doc_dict()
 
     operation = doc["operations"]["receive_download_file"]
     assert operation["action"] == "receive"
     assert operation["channel"] == {"$ref": "#/channels/root"}
     assert operation["messages"] == [{"$ref": "#/channels/root/messages/Download_File"}]
-    assert "reply" not in operation
+    assert operation["reply"] == {
+        "channel": {"$ref": "#/channels/root"},
+        "messages": [{"$ref": "#/channels/root/messages/Download_File_Ack"}],
+    }
 
     request_message = doc["components"]["messages"]["Download_File"]
     assert request_message["x-ack"] == {"$ref": "#/components/schemas/DownloadAccepted"}
+    assert request_message["examples"][0]["payload"]["location"] == "/tmp/tree.jpg"
+
+    ack_message = doc["components"]["messages"]["Download_File_Ack"]
+    assert ack_message["name"] == "download_file_ack"
+    assert ack_message["payload"] == {"$ref": "#/components/schemas/DownloadAccepted"}
 
     ack_schema = doc["components"]["schemas"]["DownloadAccepted"]
     assert ack_schema["description"] == "Response model for download file"

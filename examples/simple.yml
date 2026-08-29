@@ -4,8 +4,8 @@ info:
   version: 1.0.0
   description: 'Demo Server
 
-    <br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in
-    the custom `x-ack` message extension.
+    <br/> This specification targets AsyncAPI 3.1. Socket.IO ACKs are modeled as operation
+    `reply` messages, with the custom `x-ack` extension kept as an alias.
 
     Socket.IO-specific transport details may still require application-level interpretation.
 
@@ -20,6 +20,8 @@ channels:
     messages:
       User_Sign_Up:
         $ref: '#/components/messages/User_Sign_Up'
+      User_Sign_Up_Ack:
+        $ref: '#/components/messages/User_Sign_Up_Ack'
 operations:
   receive_user_sign_up:
     action: receive
@@ -28,6 +30,11 @@ operations:
     messages:
     - $ref: '#/channels/root/messages/User_Sign_Up'
     description: User sign up
+    reply:
+      channel:
+        $ref: '#/channels/root'
+      messages:
+      - $ref: '#/channels/root/messages/User_Sign_Up_Ack'
 components:
   messages:
     User_Sign_Up:
@@ -35,23 +42,41 @@ components:
       description: User sign up
       payload:
         $ref: '#/components/schemas/UserSignUpRequest'
+      examples:
+      - name: example
+        payload:
+          email: bob@gmail.com
+          password: '123456'
       x-ack:
         $ref: '#/components/schemas/UserSignUpResponse'
+    User_Sign_Up_Ack:
+      name: user_sign_up_ack
+      description: Socket.IO ACK for user_sign_up
+      payload:
+        $ref: '#/components/schemas/UserSignUpResponse'
+      examples:
+      - name: example
+        payload:
+          error: Invalid request
   schemas:
     NoSpec:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Specification is not provided
     UserSignUpRequest:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Request model for user sign up
       properties:
         email:
           description: User email
-          example: bob@gmail.com
+          examples:
+          - bob@gmail.com
           format: email
           title: Email
           type: string
         password:
           description: User password
-          example: '123456'
+          examples:
+          - '123456'
           title: Password
           type: string
       required:
@@ -60,6 +85,7 @@ components:
       title: UserSignUpRequest
       type: object
     UserSignUpResponse:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Response model for user sign up
       properties:
         success:
@@ -73,7 +99,8 @@ components:
           - type: 'null'
           default: null
           description: Error message if any
-          example: Invalid request
+          examples:
+          - Invalid request
           title: Error
       title: UserSignUpResponse
       type: object

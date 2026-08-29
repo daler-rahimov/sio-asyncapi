@@ -17,18 +17,17 @@ SIO-AsyncAPI
 [versions-image]: https://img.shields.io/pypi/pyversions/sio_asyncapi/
 [versions-url]: https://pypi.org/project/sio_asyncapi/
 
+SIO-AsyncAPI generates [AsyncAPI](https://www.asyncapi.com/) 3.1 documentation from a Socket.IO server and validates payloads with Pydantic v2 models. Use it with Flask-SocketIO or with asyncio / ASGI via `python-socketio.AsyncServer`.
 
-SIO-AsyncAPI is a Python library built on the top of [Flask-SocketIO](https://flask-socketio.readthedocs.io/) and driven by [AsyncAPI](https://www.asyncapi.com/). It allows you to generate an AsyncAPI specification from your SocketIO server and validate messages against it.
-
-Similar to FastAPI, SIO-AsyncAPI allows you to define your SocketIO server using Python type annotations and Pydantic models. It also provides a way to generate an AsyncAPI specification from your SocketIO server.
-
-SIO-AsyncAPI now supports both Pydantic 1.10+ and 2.x, emits AsyncAPI 3.1, and keeps Socket.IO ACKs in the custom `x-ack` extension.
+Socket.IO ACKs are modeled as AsyncAPI 3 `reply` messages. The custom `x-ack` extension is kept as an alias. Component schemas are JSON Schema 2020-12.
 
 ## Installation
 
 ```bash
 pip install sio_asyncapi
 ```
+
+Requires Python 3.10–3.13 and Pydantic v2.
 
 ## Basic Example
 
@@ -61,8 +60,8 @@ socketio = AsyncAPISocketIO(
 
 class UserSignUpRequest(BaseModel):
     """Request model for user sign up"""
-    email: EmailStr = Field(..., description="User email", example="bob@gmail.com")
-    password: str = Field(..., description="User password", example="123456")
+    email: EmailStr = Field(..., description="User email", examples=["bob@gmail.com"])
+    password: str = Field(..., description="User password", examples=["123456"])
 
 
 class UserSignUpResponse(BaseModel):
@@ -71,7 +70,7 @@ class UserSignUpResponse(BaseModel):
     error: Optional[str] = Field(
         None,
         description="Error message if any",
-        example="Invalid request",
+        examples=["Invalid request"],
     )
 
 
@@ -105,20 +104,26 @@ if __name__ == "__main__":
 Here is how validation error looks like in FireCamp:
 ![](https://github.com/daler-rahimov/sio-asyncapi/blob/master/doc/assets/20221219000309.png?raw=true)
 
-In order to get the AsyncAPI specification from your SocketIO server instead of running the server, you can do the following:
-You can also get a compact agent-friendly event catalog with `socketio.get_agent_schema()` or `socketio.get_agent_schema_json()`.
-See `examples/agentic_doc_example.py` for a complete example that writes both exports to disk.
-```python
-import pathlib
-if __name__ == "__main__":
-    path = pathlib.Path(__file__).parent / "simple.yml"
-    doc_str = socketio.asyncapi_doc.get_yaml()
-    with open(path, "w") as f:
-        f.write(doc_str)
-    print(doc_str)
+## Serving and exporting the spec
 
+With `generate_docs=True` (the default), the running app serves:
+
+- `/asyncapi` — HTML (AsyncAPI React Component)
+- `/asyncapi.json` / `/asyncapi.yaml` — the spec
+- `/agent-schema.json` — compact event catalog for agents
+
+Pass `serve_docs=False` to disable those routes. You can also export without starting a server:
+
+```bash
+python -m sio_asyncapi export app:socketio --out spec.yml
+python -m sio_asyncapi export app:socketio --format json --out spec.json
+python -m sio_asyncapi export app:socketio --agent-schema --out agent-schema.json
 ```
-Example of the AsyncAPI specification generated from the above example:
+
+`examples/agentic_doc_example.py` writes both the AsyncAPI document and the agent catalog to disk.
+
+Generated spec from the example above (`examples/simple.yml`):
+
 ```yaml
 # examples/simple.yml
 
@@ -128,8 +133,8 @@ info:
   version: 1.0.0
   description: 'Demo Server
 
-    <br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in
-    the custom `x-ack` message extension.
+    <br/> This specification targets AsyncAPI 3.1. Socket.IO ACKs are modeled as operation
+    `reply` messages, with the custom `x-ack` extension kept as an alias.
 
     Socket.IO-specific transport details may still require application-level interpretation.
 
@@ -144,6 +149,8 @@ channels:
     messages:
       User_Sign_Up:
         $ref: '#/components/messages/User_Sign_Up'
+      User_Sign_Up_Ack:
+        $ref: '#/components/messages/User_Sign_Up_Ack'
 operations:
   receive_user_sign_up:
     action: receive
@@ -152,6 +159,11 @@ operations:
     messages:
     - $ref: '#/channels/root/messages/User_Sign_Up'
     description: User sign up
+    reply:
+      channel:
+        $ref: '#/channels/root'
+      messages:
+      - $ref: '#/channels/root/messages/User_Sign_Up_Ack'
 components:
   messages:
     User_Sign_Up:
@@ -159,23 +171,38 @@ components:
       description: User sign up
       payload:
         $ref: '#/components/schemas/UserSignUpRequest'
+      examples:
+      - name: example
+        payload:
+          email: bob@gmail.com
+          password: '123456'
       x-ack:
         $ref: '#/components/schemas/UserSignUpResponse'
+    User_Sign_Up_Ack:
+      name: user_sign_up_ack
+      description: Socket.IO ACK for user_sign_up
+      payload:
+        $ref: '#/components/schemas/UserSignUpResponse'
+      examples:
+      - name: example
+        payload:
+          error: Invalid request
   schemas:
-    NoSpec:
-      description: Specification is not provided
     UserSignUpRequest:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Request model for user sign up
       properties:
         email:
           description: User email
-          example: bob@gmail.com
+          examples:
+          - bob@gmail.com
           format: email
           title: Email
           type: string
         password:
           description: User password
-          example: '123456'
+          examples:
+          - '123456'
           title: Password
           type: string
       required:
@@ -183,30 +210,50 @@ components:
       - password
       title: UserSignUpRequest
       type: object
-    UserSignUpResponse:
-      description: Response model for user sign up
-      properties:
-        success:
-          default: true
-          description: Success status
-          title: Success
-          type: boolean
-        error:
-          anyOf:
-          - type: string
-          - type: 'null'
-          default: null
-          description: Error message if any
-          example: Invalid request
-          title: Error
-      title: UserSignUpResponse
-      type: object
 ```
 
 Rendered version of the above AsyncAPI specification:
 ![](https://github.com/daler-rahimov/sio-asyncapi/blob/master/doc/assets/20221219000543.png?raw=true)
 
+## asyncio / ASGI
+
+`AsyncAPIAsyncServer` wraps `python-socketio.AsyncServer`. Mount it in FastAPI, Starlette, or any ASGI server. The spec is served from the same docs paths when you use `asgi_app()`:
+
+```python
+from pydantic import BaseModel, Field
+from sio_asyncapi import AsyncAPIAsyncServer
+
+sio = AsyncAPIAsyncServer(validate=True, generate_docs=True)
+
+class EchoIn(BaseModel):
+    text: str = Field(..., examples=["hello"])
+
+class EchoOut(BaseModel):
+    text: str
+
+@sio.on("echo", get_from_typehint=True)
+async def echo(sid: str, request: EchoIn) -> EchoOut:
+    return EchoOut(text=request.text)
+
+app = sio.asgi_app()  # uvicorn examples.asgi_echo:app
+```
+
+See `examples/asgi_echo.py`.
+
+## Typed Python client
+
+`AsyncAPIClient` and `AsyncAPIAsyncClient` reuse the server's Pydantic models to validate outgoing events, ACKs, and incoming server emits:
+
+```python
+from sio_asyncapi import AsyncAPIClient
+
+client = AsyncAPIClient.from_server(socketio, "http://localhost:5000")
+client.connect()
+ack = client.call("user_sign_up", {"email": "bob@gmail.com", "password": "123456"})
+```
+
 ## Converting from Flask-SocketIO to SIO-AsyncAPI
+
 SIO-AsyncAPI is built on top of Flask-SocketIO and all unit tests of Flask-SocketIO are tested against SIO-AsyncAPI. If you converting your SocketIO server from Flask-SocketIO to SIO-AsyncAPI, you can be sure that your SocketIO server will work as expected. When converting your SocketIO server from Flask-SocketIO to SIO-AsyncAPI, it's as simple as changing the import statement:
 
 ```python
@@ -223,6 +270,15 @@ socketio = SocketIO(app)
 
 Handshake auth can be documented with `auth_model=` (and optionally `security_scheme=`) on `AsyncAPISocketIO`, or by decorating `@socketio.on("connect", get_from_typehint=True)`.
 
+## 2.0 breaking changes
+
+- Pydantic v2 only (v1 support removed).
+- Python 3.10–3.13.
+- ACK documentation uses AsyncAPI 3 `reply`; `x-ack` remains as an alias.
+- JSON Schema 2020-12 in `components/schemas` (`examples` instead of draft-07 `example`).
+
+See `CHANGELOG.md` for the full list.
+
 ## Acknowledgements
 Most of the implementation follows research done by Dimitrios Dedoussis (https://www.asyncapi.com/blog/socketio-part2).
 
@@ -231,4 +287,7 @@ Most of the implementation follows research done by Dimitrios Dedoussis (https:/
 - [x] Flask-SocketIO `namespaces`
 - [x] Authentication and security auto documentation
 - [x] `connect` and `disconnect` handlers auto documentation
+- [x] asyncio / ASGI backend
+- [x] Serve the spec from the running app
+- [x] Typed Python client from the same models
 - [ ] Flask-SocketIO `rooms` metadata (runtime routing, not part of AsyncAPI)

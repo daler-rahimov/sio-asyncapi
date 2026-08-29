@@ -4,8 +4,8 @@ info:
   version: 1.0.0
   description: 'Tick-Tack-Toe Game API
 
-    <br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in
-    the custom `x-ack` message extension.
+    <br/> This specification targets AsyncAPI 3.1. Socket.IO ACKs are modeled as operation
+    `reply` messages, with the custom `x-ack` extension kept as an alias.
 
     Socket.IO-specific transport details may still require application-level interpretation.
 
@@ -24,6 +24,8 @@ channels:
         $ref: '#/components/messages/game_created'
       Make_Move:
         $ref: '#/components/messages/Make_Move'
+      Make_Move_Ack:
+        $ref: '#/components/messages/Make_Move_Ack'
       move_made:
         $ref: '#/components/messages/move_made'
       game_drawn:
@@ -49,6 +51,11 @@ operations:
       $ref: '#/channels/root'
     messages:
     - $ref: '#/channels/root/messages/Make_Move'
+    reply:
+      channel:
+        $ref: '#/channels/root'
+      messages:
+      - $ref: '#/channels/root/messages/Make_Move_Ack'
   send_move_made:
     action: send
     channel:
@@ -77,18 +84,51 @@ components:
       description: ''
       payload:
         $ref: '#/components/schemas/GameCreatedData'
+      examples:
+      - name: example
+        payload:
+          game_id: 1
     Make_Move:
       name: make_move
       description: ''
       payload:
         $ref: '#/components/schemas/MakeMoveData'
+      examples:
+      - name: example
+        payload:
+          game_id: 1
+          x: 0
+          y: 0
       x-ack:
         $ref: '#/components/schemas/MakeMoveAckData'
+    Make_Move_Ack:
+      name: make_move_ack
+      description: Socket.IO ACK for make_move
+      payload:
+        $ref: '#/components/schemas/MakeMoveAckData'
+      examples:
+      - name: example
+        payload:
+          error: Invalid move
     move_made:
       name: move_made
       description: ''
       payload:
         $ref: '#/components/schemas/MoveMadeData'
+      examples:
+      - name: example
+        payload:
+          board:
+          - - X
+            - O
+            - ''
+          - - ''
+            - X
+            - ''
+          - - ''
+            - ''
+            - O
+          turn: X
     game_drawn:
       name: game_drawn
       description: ''
@@ -99,37 +139,48 @@ components:
       description: ''
       payload:
         $ref: '#/components/schemas/GameWonData'
+      examples:
+      - name: example
+        payload:
+          winner: X
   schemas:
     NoSpec:
+      $schema: https://json-schema.org/draft/2020-12/schema
       description: Specification is not provided
     GameCreatedData:
+      $schema: https://json-schema.org/draft/2020-12/schema
       properties:
         game_id:
           description: The game id
-          example: 1
           title: Game Id
           type: integer
+          examples:
+          - 1
       required:
       - game_id
       title: GameCreatedData
       type: object
     MakeMoveData:
+      $schema: https://json-schema.org/draft/2020-12/schema
       properties:
         game_id:
           description: The game id
-          example: 1
           title: Game Id
           type: integer
+          examples:
+          - 1
         x:
           description: The x coordinate
-          example: 0
           title: X
           type: integer
+          examples:
+          - 0
         y:
           description: The y coordinate
-          example: 0
           title: Y
           type: integer
+          examples:
+          - 0
       required:
       - game_id
       - x
@@ -137,6 +188,7 @@ components:
       title: MakeMoveData
       type: object
     MakeMoveAckData:
+      $schema: https://json-schema.org/draft/2020-12/schema
       properties:
         error:
           anyOf:
@@ -144,51 +196,57 @@ components:
           - type: 'null'
           default: null
           description: The error message
-          example: Invalid move
           title: Error
+          examples:
+          - Invalid move
       title: MakeMoveAckData
       type: object
     MoveMadeData:
+      $schema: https://json-schema.org/draft/2020-12/schema
       properties:
         board:
           description: The game board
-          example:
-          - - X
-            - O
-            - ''
-          - - ''
-            - X
-            - ''
-          - - ''
-            - ''
-            - O
           items:
             items:
               type: string
             type: array
           title: Board
           type: array
+          examples:
+          - - - X
+              - O
+              - ''
+            - - ''
+              - X
+              - ''
+            - - ''
+              - ''
+              - O
         turn:
           description: The current turn
-          example: X
           title: Turn
           type: string
+          examples:
+          - X
       required:
       - board
       - turn
       title: MoveMadeData
       type: object
     GameDrawnData:
+      $schema: https://json-schema.org/draft/2020-12/schema
       properties: {}
       title: GameDrawnData
       type: object
     GameWonData:
+      $schema: https://json-schema.org/draft/2020-12/schema
       properties:
         winner:
           description: The winner
-          example: X
           title: Winner
           type: string
+          examples:
+          - X
       required:
       - winner
       title: GameWonData
