@@ -29,6 +29,16 @@ pip install sio_asyncapi
 
 Requires Python 3.10–3.13 and Pydantic v2.
 
+Development with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv sync
+uv run python examples/simple.py
+uv run pytest tests
+```
+
+Then open http://localhost:5000/asyncapi for the HTML spec viewer.
+
 ## Basic Example
 
 ```py

@@ -8,7 +8,11 @@ from sio_asyncapi import (
     EmitValidationError,
     RequestValidationError,
 )
-from sio_asyncapi.http import DOC_PATHS, docs_body_and_type
+from sio_asyncapi.http import (
+    ASYNCAPI_REACT_COMPONENT_VERSION,
+    DOC_PATHS,
+    docs_body_and_type,
+)
 
 
 class EchoIn(BaseModel):
@@ -75,6 +79,8 @@ def test_flask_serves_asyncapi_routes():
     html_resp = client.get("/asyncapi")
     assert html_resp.status_code == 200
     assert b"AsyncApiStandalone" in html_resp.data
+    assert ASYNCAPI_REACT_COMPONENT_VERSION.encode() in html_resp.data
+    assert b"@asyncapi/react-component@2." not in html_resp.data
 
     agent_resp = client.get("/agent-schema.json")
     assert agent_resp.status_code == 200

@@ -14,25 +14,15 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.11"
 
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
-        with:
-          version: 1.8.3
-          virtualenvs-in-project: true
-          installer-parallel: true
+      - name: Build
+        run: uv build
 
-      - name: Install dependencies
-        run: poetry install --only main --no-interaction
-
-      - name: Configure poetry
+      - name: Publish
         env:
-          pypi_token: ${{ secrets.PYPI_TOKEN }}
-        run: poetry config pypi-token.pypi $pypi_token
-
-      - name: Build and publish
-        run: poetry publish --build
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+        run: uv publish

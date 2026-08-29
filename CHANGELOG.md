@@ -23,3 +23,5 @@ Breaking major version: Pydantic v2 only, asyncio/ASGI backend, and AsyncAPI 3 `
 
 - Flask and asyncio servers share documentation and validation through `AsyncAPIContract`.
 - ACK payloads continue to be returned as JSON-compatible dicts, not JSON strings.
+- The `/asyncapi` HTML viewer uses `@asyncapi/react-component` 3.1.x so AsyncAPI 3.1 documents render.
+- Packaging uses uv (`uv.lock`, PEP 621) instead of Poetry.

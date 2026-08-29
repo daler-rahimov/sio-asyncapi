@@ -7,6 +7,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from sio_asyncapi.contract import AsyncAPIContract
 
+# Parser in 2.6.x stops at AsyncAPI 3.0.0; 3.1.x is required to render 3.1 specs.
+ASYNCAPI_REACT_COMPONENT_VERSION = "3.1.3"
+
 DOC_PATHS = {
     "/asyncapi": "html",
     "/asyncapi.json": "json",
@@ -20,17 +23,21 @@ def html_page(contract: "AsyncAPIContract") -> str:
     """Return a standalone HTML page that renders the AsyncAPI document."""
     spec_json = json.dumps(contract.asyncapi_doc.dict())
     title = contract.asyncapi_doc.info.get("title", "AsyncAPI")
+    cdn = (
+        "https://unpkg.com/@asyncapi/react-component"
+        f"@{ASYNCAPI_REACT_COMPONENT_VERSION}"
+    )
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>{title} — AsyncAPI</title>
-  <link rel="stylesheet" href="https://unpkg.com/@asyncapi/react-component@2.6.3/styles/default.min.css">
+  <link rel="stylesheet" href="{cdn}/styles/default.min.css">
 </head>
 <body>
   <div id="asyncapi"></div>
-  <script src="https://unpkg.com/@asyncapi/react-component@2.6.3/browser/standalone/index.js"></script>
+  <script src="{cdn}/browser/standalone/index.js"></script>
   <script>
     AsyncApiStandalone.render({{
       schema: {spec_json},
