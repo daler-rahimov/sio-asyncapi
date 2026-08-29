@@ -33,7 +33,7 @@ operations:
     - $ref: '#/channels/root/messages/Download_File'
     description: '
 
-      Except request to download file from URL and save to server''s file system.
+      Accept request to download file from URL and save to server''s file system.
       </br>
 
       Requests are **not** executed immediately, but added to queue.
@@ -63,7 +63,7 @@ components:
       name: download_file
       description: '
 
-        Except request to download file from URL and save to server''s file system.
+        Accept request to download file from URL and save to server''s file system.
         </br>
 
         Requests are **not** executed immediately, but added to queue.
@@ -89,73 +89,75 @@ components:
     NoSpec:
       description: Specification is not provided
     DownloadFileRequest:
-      title: DownloadFileRequest
       description: Request model for download file
-      type: object
       properties:
         url:
-          title: Url
           description: URL to download
           example: https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg
-          minLength: 1
-          maxLength: 65536
           format: uri
+          minLength: 1
+          title: Url
           type: string
         location:
-          title: Location
           description: Destination local to file system; should be an absolute path
           example: /tmp/tree.jpg
-          type: string
           format: path
+          title: Location
+          type: string
         check_hash:
-          title: Check Hash
+          anyOf:
+          - type: boolean
+          - type: 'null'
           default: false
-          type: boolean
+          title: Check Hash
       required:
       - url
       - location
-    DownloadAccepted:
-      title: DownloadAccepted
-      description: Response model for download file
+      title: DownloadFileRequest
       type: object
+    Data:
+      properties:
+        is_accepted:
+          default: true
+          title: Is Accepted
+          type: boolean
+      title: Data
+      type: object
+    DownloadAccepted:
+      description: Response model for download file
       properties:
         success:
-          title: Success
-          description: Success status
           default: true
+          description: Success status
+          title: Success
           type: boolean
         error:
-          title: Error
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
           description: Error message if any
           example: Invalid request
-          type: string
+          title: Error
         data:
-          $ref: '#/components/schemas/DownloadAccepted/definitions/Data'
+          $ref: '#/components/schemas/Data'
       required:
       - data
-      definitions:
-        Data:
-          title: Data
-          type: object
-          properties:
-            is_accepted:
-              title: Is Accepted
-              default: true
-              type: boolean
-    DownloaderQueueEmitModel:
-      title: DownloaderQueueEmitModel
-      description: Emit model for current list
+      title: DownloadAccepted
       type: object
+    DownloaderQueueEmitModel:
+      description: Emit model for current list
       properties:
         downloader_queue:
-          title: Downloader Queue
           description: List of URLs to download
           example: '[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]'
-          type: array
           items:
-            type: string
-            minLength: 1
-            maxLength: 65536
             format: uri
+            minLength: 1
+            type: string
+          title: Downloader Queue
+          type: array
       required:
       - downloader_queue
+      title: DownloaderQueueEmitModel
+      type: object

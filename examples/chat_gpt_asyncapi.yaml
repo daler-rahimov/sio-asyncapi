@@ -103,54 +103,54 @@ components:
     NoSpec:
       description: Specification is not provided
     GameCreatedData:
-      title: GameCreatedData
-      type: object
       properties:
         game_id:
-          title: Game Id
           description: The game id
           example: 1
+          title: Game Id
           type: integer
       required:
       - game_id
-    MakeMoveData:
-      title: MakeMoveData
+      title: GameCreatedData
       type: object
+    MakeMoveData:
       properties:
         game_id:
-          title: Game Id
           description: The game id
           example: 1
+          title: Game Id
           type: integer
         x:
-          title: X
           description: The x coordinate
           example: 0
+          title: X
           type: integer
         y:
-          title: Y
           description: The y coordinate
           example: 0
+          title: Y
           type: integer
       required:
       - game_id
       - x
       - y
-    MakeMoveAckData:
-      title: MakeMoveAckData
+      title: MakeMoveData
       type: object
+    MakeMoveAckData:
       properties:
         error:
-          title: Error
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
           description: The error message
           example: Invalid move
-          type: string
-    MoveMadeData:
-      title: MoveMadeData
+          title: Error
+      title: MakeMoveAckData
       type: object
+    MoveMadeData:
       properties:
         board:
-          title: Board
           description: The game board
           example:
           - - X
@@ -162,31 +162,34 @@ components:
           - - ''
             - ''
             - O
-          type: array
           items:
-            type: array
             items:
               type: string
+            type: array
+          title: Board
+          type: array
         turn:
-          title: Turn
           description: The current turn
           example: X
+          title: Turn
           type: string
       required:
       - board
       - turn
+      title: MoveMadeData
+      type: object
     GameDrawnData:
+      properties: {}
       title: GameDrawnData
       type: object
-      properties: {}
     GameWonData:
-      title: GameWonData
-      type: object
       properties:
         winner:
-          title: Winner
           description: The winner
           example: X
+          title: Winner
           type: string
       required:
       - winner
+      title: GameWonData
+      type: object

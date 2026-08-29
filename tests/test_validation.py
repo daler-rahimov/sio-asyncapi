@@ -110,3 +110,96 @@ def test_emit_validation_is_namespace_aware():
 
     with pytest.raises(EmitValidationError):
         socketio.emit("status", {"count": 1})
+
+
+def test_ack_is_returned_as_dict():
+    app = Flask(__name__)
+    socketio = AsyncAPISocketIO(app, validate=True, generate_docs=False)
+
+    class PingAck(BaseModel):
+        ok: bool = True
+
+    @socketio.on("ping", get_from_typehint=True)
+    def ping() -> PingAck:
+        return PingAck()
+
+    result = ping()
+    assert result == {"ok": True}
+    assert isinstance(result, dict)
+
+
+def test_event_decorator_uses_on_path_for_docs_and_validation():
+    app = Flask(__name__)
+    socketio = AsyncAPISocketIO(app, validate=True, generate_docs=True)
+
+    class EchoRequest(BaseModel):
+        text: str
+
+    class EchoResponse(BaseModel):
+        text: str
+
+    @socketio.event(get_from_typehint=True)
+    def echo(request: EchoRequest) -> EchoResponse:
+        return EchoResponse(text=request.text)
+
+    doc = socketio.asyncapi_doc.dict()
+    assert "receive_echo" in doc["operations"]
+    assert doc["components"]["messages"]["Echo"]["payload"] == {
+        "$ref": "#/components/schemas/EchoRequest"
+    }
+
+    with pytest.raises(RequestValidationError):
+        echo({})
+
+    assert echo({"text": "hi"}) == {"text": "hi"}
+
+
+def test_typehint_skips_self_and_sid():
+    app = Flask(__name__)
+    socketio = AsyncAPISocketIO(app, validate=True, generate_docs=True)
+
+    class Payload(BaseModel):
+        value: int
+
+    class Ack(BaseModel):
+        value: int
+
+    @socketio.on("with_self", get_from_typehint=True)
+    def handle_with_self(self, request: Payload) -> Ack:
+        return Ack(value=request.value)
+
+    @socketio.on("with_sid", get_from_typehint=True)
+    def handle_with_sid(sid, request: Payload) -> Ack:
+        return Ack(value=request.value)
+
+    doc = socketio.asyncapi_doc.dict()
+    assert doc["components"]["messages"]["With_Self"]["payload"] == {
+        "$ref": "#/components/schemas/Payload"
+    }
+    assert doc["components"]["messages"]["With_Sid"]["payload"] == {
+        "$ref": "#/components/schemas/Payload"
+    }
+
+
+def test_module_level_emit_is_validated():
+    app = Flask(__name__)
+    socketio = AsyncAPISocketIO(app, validate=True, generate_docs=False)
+    caught = {}
+
+    class StatusEmit(BaseModel):
+        message: str
+
+    @socketio.doc_emit("status", StatusEmit)
+    @socketio.on("trigger")
+    def trigger():
+        from flask_socketio import emit as flask_emit
+        flask_emit("status", {"bad": True})
+
+    @socketio.on_error_default
+    def handle_error(error):
+        caught["error"] = error
+
+    client = socketio.test_client(app)
+    client.emit("trigger")
+    client.disconnect()
+    assert isinstance(caught.get("error"), EmitValidationError)

@@ -55,50 +55,53 @@ components:
     NoSpec:
       description: Specification is not provided
     AskAssistantRequest:
-      title: AskAssistantRequest
       description: Request model for sending a user prompt to the assistant.
-      type: object
       properties:
         prompt:
-          title: Prompt
           description: Natural-language prompt from the user
+          title: Prompt
           type: string
         conversation_id:
-          title: Conversation Id
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
           description: Conversation identifier for multi-turn chats
           example: chat-123
-          type: string
+          title: Conversation Id
       required:
       - prompt
-    AskAssistantResponse:
-      title: AskAssistantResponse
-      description: Ack model returned immediately after a prompt is accepted.
+      title: AskAssistantRequest
       type: object
+    AskAssistantResponse:
+      description: Ack model returned immediately after a prompt is accepted.
       properties:
         accepted:
-          title: Accepted
-          description: Whether the prompt was accepted
           default: true
+          description: Whether the prompt was accepted
+          title: Accepted
           type: boolean
         request_id:
-          title: Request Id
           description: Server-generated request identifier
+          title: Request Id
           type: string
       required:
       - request_id
-    AssistantReply:
-      title: AssistantReply
-      description: Server push event containing the assistant's generated reply.
+      title: AskAssistantResponse
       type: object
+    AssistantReply:
+      description: Server push event containing the assistant's generated reply.
       properties:
         request_id:
-          title: Request Id
           description: Identifier of the related request
+          title: Request Id
           type: string
         message:
-          title: Message
           description: Generated reply text
+          title: Message
           type: string
       required:
       - request_id
       - message
+      title: AssistantReply
+      type: object

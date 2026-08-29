@@ -6,6 +6,7 @@ from flask import Flask
 from pydantic import BaseModel, Field
 
 from sio_asyncapi import AsyncAPISocketIO, RequestValidationError, ResponseValidationError
+from sio_asyncapi._compat import field_schema_extra
 
 app = Flask(__name__)
 
@@ -27,7 +28,7 @@ class AskAssistantRequest(BaseModel):
     conversation_id: Optional[str] = Field(
         None,
         description="Conversation identifier for multi-turn chats",
-        example="chat-123",
+        **field_schema_extra(example="chat-123"),
     )
 
 

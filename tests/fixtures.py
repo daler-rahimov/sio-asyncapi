@@ -6,11 +6,11 @@ from typing import Optional, List
 
 import pytest
 from flask import Flask
-from flask_socketio import (SocketIOTestClient, emit)
-from loguru import logger
+from flask_socketio import SocketIOTestClient, emit
 from pydantic import AnyUrl, BaseModel, Field
 
 from sio_asyncapi import (RequestValidationError, ResponseValidationError, EmitValidationError)
+from sio_asyncapi._compat import field_schema_extra
 from sio_asyncapi.application import AsyncAPISocketIO as SocketIO
 
 logger = logging.getLogger(__name__)
@@ -36,13 +36,18 @@ class SocketBaseResponse(BaseModel, abc.ABC):
     error: Optional[str] = Field(
         None,
         description="Error message if any",
-        example="Invalid request")
+        **field_schema_extra(example="Invalid request"),
+    )
 
 
 class SocketErrorResponse(SocketBaseResponse):
     """Error response"""
     success: bool = False
-    error: str = Field(..., description="Error message if any", example="Invalid request")
+    error: str = Field(
+        ...,
+        description="Error message if any",
+        **field_schema_extra(example="Invalid request"),
+    )
 
 
 class DownloadAccepted(SocketBaseResponse):
@@ -54,17 +59,29 @@ class DownloadAccepted(SocketBaseResponse):
 
 class DownloadFileRequest(BaseModel):
     """Request model for download file"""
-    url: AnyUrl = Field(..., description="URL to download",
-                        example="https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg")
-    location: Path = Field(...,
-                           description="Destination local to file system; should be an absolute path",
-                           example="/tmp/tree.jpg")
+    url: AnyUrl = Field(
+        ...,
+        description="URL to download",
+        **field_schema_extra(
+            example="https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg"
+        ),
+    )
+    location: Path = Field(
+        ...,
+        description="Destination local to file system; should be an absolute path",
+        **field_schema_extra(example="/tmp/tree.jpg"),
+    )
     check_hash: Optional[bool] = False
 
 class DownloaderQueueEmitModel(BaseModel):
     """Emit model for current list"""
-    downloader_queue: List[AnyUrl] = Field(..., description="List of URLs to download",
-                        example="[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]")
+    downloader_queue: List[AnyUrl] = Field(
+        ...,
+        description="List of URLs to download",
+        **field_schema_extra(
+            example="[https://cdn.pixabay.com/photo/2015/04/23/22/00/tree-736885__480.jpg]"
+        ),
+    )
 
 downloader_queue = []
 
@@ -94,7 +111,7 @@ def get_download_list_fail() -> None:
 @socketio.on('download_file', get_from_typehint=True)
 def download_file(request: DownloadFileRequest) -> DownloadAccepted:
     """
-    Except request to download file from URL and save to server's file system. </br>
+    Accept request to download file from URL and save to server's file system. </br>
     Requests are **not** executed immediately, but added to queue.
     """
     # check if file exists

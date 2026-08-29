@@ -5,19 +5,18 @@ description = "Flask SocketIO with auto-generate Asyncapi documentation"
 authors = ["Daler Rahimov <daler.edu@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-# packages = [{include = "src/sio_asyncapi"}]
+packages = [{include = "sio_asyncapi", from = "src"}]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.13"
+python = ">=3.9,<3.14"
 flask-socketio = ">=5.3.2,<6.0"
 pydantic = {extras = ["email"], version = ">=1.10.17,<3.0"}
 pyyaml = ">=6.0,<7.0"
 python-engineio = ">=4.3.4,<5.0"
-loguru = ">=0.6,<0.8"
-
 
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.2,<9.0"
+pytest-cov = ">=4.0,<7.0"
 autopep8 = ">=2.0,<2.4"
 codespell = ">=2.2,<3.0"
 redis = ">=4.4,<6.0"

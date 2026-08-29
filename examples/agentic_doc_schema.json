@@ -31,10 +31,18 @@
         "description": "Request model for sending a user prompt to the assistant.",
         "properties": {
           "conversation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
             "description": "Conversation identifier for multi-turn chats",
             "example": "chat-123",
-            "title": "Conversation Id",
-            "type": "string"
+            "title": "Conversation Id"
           },
           "prompt": {
             "description": "Natural-language prompt from the user",

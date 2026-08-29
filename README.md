@@ -35,11 +35,14 @@ pip install sio_asyncapi
 ```py
 # examples/simple.py
 
-from flask import Flask
-from sio_asyncapi import AsyncAPISocketIO, ResponseValidationError, RequestValidationError
-from pydantic import BaseModel, Field, EmailStr
-from typing import Optional
 import logging
+from typing import Optional
+
+from flask import Flask
+from pydantic import BaseModel, EmailStr, Field
+
+from sio_asyncapi import AsyncAPISocketIO, RequestValidationError, ResponseValidationError
+
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -65,8 +68,11 @@ class UserSignUpRequest(BaseModel):
 class UserSignUpResponse(BaseModel):
     """Response model for user sign up"""
     success: bool = Field(True, description="Success status")
-    error: Optional[str] = Field( None, description="Error message if any",
-        example="Invalid request")
+    error: Optional[str] = Field(
+        None,
+        description="Error message if any",
+        example="Invalid request",
+    )
 
 
 @socketio.on("user_sign_up", get_from_typehint=True)
@@ -75,33 +81,25 @@ def user_sign_up(request: UserSignUpRequest) -> UserSignUpResponse:
     _ = request
     return UserSignUpResponse(success=True, error=None)
 
+
 @socketio.on_error_default
 def default_error_handler(e: Exception):
     """
-    Default error handler. It called if no other error handler defined.
-    Handles RequestValidationError and ResponseValidationError errors.
+    Default error handler. It is called if no other error handler is defined.
+    Handles RequestValidationError and ResponseValidationError.
     """
     if isinstance(e, RequestValidationError):
-        logger.error(f"Request validation error: {e}")
+        logger.error("Request validation error: %s", e)
         return {"success": False, "error": str(e)}
-    elif isinstance(e, ResponseValidationError):
-        logger.critical(f"Response validation error: {e}")
+    if isinstance(e, ResponseValidationError):
+        logger.critical("Response validation error: %s", e)
         raise e
-    else:
-        logger.critical(f"Unknown error: {e}")
-        raise e
+    logger.critical("Unknown error: %s", e)
+    raise e
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     socketio.run(app, debug=True)
-
-# import pathlib
-# if __name__ == "__main__":
-#     path = pathlib.Path(__file__).parent / "simple.yml"
-#     doc_str = socketio.asyncapi_doc.get_yaml()
-#     with open(path, "w") as f:
-#         f.write(doc_str)
-#     print(doc_str)
-
 ```
 
 Here is how validation error looks like in FireCamp:
@@ -167,39 +165,42 @@ components:
     NoSpec:
       description: Specification is not provided
     UserSignUpRequest:
-      title: UserSignUpRequest
       description: Request model for user sign up
-      type: object
       properties:
         email:
-          title: Email
           description: User email
           example: bob@gmail.com
-          type: string
           format: email
+          title: Email
+          type: string
         password:
-          title: Password
           description: User password
           example: '123456'
+          title: Password
           type: string
       required:
       - email
       - password
-    UserSignUpResponse:
-      title: UserSignUpResponse
-      description: Response model for user sign up
+      title: UserSignUpRequest
       type: object
+    UserSignUpResponse:
+      description: Response model for user sign up
       properties:
         success:
-          title: Success
-          description: Success status
           default: true
+          description: Success status
+          title: Success
           type: boolean
         error:
-          title: Error
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
           description: Error message if any
           example: Invalid request
-          type: string
+          title: Error
+      title: UserSignUpResponse
+      type: object
 ```
 
 Rendered version of the above AsyncAPI specification:
@@ -211,19 +212,23 @@ SIO-AsyncAPI is built on top of Flask-SocketIO and all unit tests of Flask-Socke
 ```python
 # instead of `from flask_socketio import SocketIO`
 from sio_asyncapi import AsyncAPISocketIO as SocketIO
+from sio_asyncapi import emit  # optional; still validates documented emit events
 ...
 # There are additional arguments that you can pass to the constructor of AsyncAPISocketIO
 socketio = SocketIO(app)
 ...
 ```
 
+`flask_socketio.emit` looks up this Socket.IO instance from the Flask extension map, so emit validation still applies. Prefer `from sio_asyncapi import emit` so the import path matches the validated API.
+
+Handshake auth can be documented with `auth_model=` (and optionally `security_scheme=`) on `AsyncAPISocketIO`, or by decorating `@socketio.on("connect", get_from_typehint=True)`.
+
 ## Acknowledgements
-Most of the implementation follows research done by Dimitrios Dedoussis (https://www.asyncapi.com/blog/socketio-part2) and uses some Pydantic models from [here](https://github.com/albertnadal/asyncapi-schema-pydantic)
+Most of the implementation follows research done by Dimitrios Dedoussis (https://www.asyncapi.com/blog/socketio-part2).
 
-## Missing Features
-SIO-AsyncAPI is still in its early stages and there are some features that are not yet implemented. If you are interested in contributing to SIO-AsyncAPI any contribution is welcome. Here is the list of missing features:
-
-- [x] Support of AsycnAPI documentation and validation for `emit` messages
-- [ ] Support of Flask-SocketIO `namespaces` and `rooms`
-- [ ] Authentication and security auto documentation
-- [ ] `connect` and `disconnect` handlers auto documentation
+## Roadmap
+- [x] AsyncAPI documentation and validation for `emit` messages
+- [x] Flask-SocketIO `namespaces`
+- [x] Authentication and security auto documentation
+- [x] `connect` and `disconnect` handlers auto documentation
+- [ ] Flask-SocketIO `rooms` metadata (runtime routing, not part of AsyncAPI)

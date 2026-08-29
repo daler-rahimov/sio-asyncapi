@@ -25,6 +25,9 @@ jobs:
           - python-version: "3.12"
             pydantic-cache-key: "pydantic-v2"
             pydantic-version: ">=2.0,<3.0"
+          - python-version: "3.13"
+            pydantic-cache-key: "pydantic-v2"
+            pydantic-version: ">=2.0,<3.0"
 
     steps:
       - uses: actions/checkout@v4
@@ -61,8 +64,19 @@ jobs:
       - name: Install asyncapi-cli
         run: npm install -g @asyncapi/cli
 
-      - name: Validate example AsyncAPI spec
-        run: asyncapi validate ./examples/downloader.yml
+      - name: Validate example AsyncAPI specs
+        run: |
+          asyncapi validate ./examples/downloader.yml
+          asyncapi validate ./examples/simple.yml
+          asyncapi validate ./examples/agentic_doc_asyncapi.yml
+          asyncapi validate ./examples/chat_gpt_asyncapi.yaml
 
       - name: Run tests
-        run: poetry run pytest tests -v
+        run: poetry run pytest tests -v --cov=sio_asyncapi --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.12'
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false

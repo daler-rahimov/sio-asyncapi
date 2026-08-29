@@ -1,8 +1,19 @@
-from .application import (AsyncAPISocketIO, EmitValidationError,
-                          RequestValidationError, ResponseValidationError)
+from flask_socketio import emit, send
+
+from .application import (
+    AsyncAPISocketIO,
+    EmitValidationError,
+    RequestValidationError,
+    ResponseValidationError,
+)
+from .asyncapi.docs import SchemaNameCollisionError
 
 __all__ = [
     "AsyncAPISocketIO",
     "RequestValidationError",
     "ResponseValidationError",
-    "EmitValidationError"]
+    "EmitValidationError",
+    "SchemaNameCollisionError",
+    "emit",
+    "send",
+]

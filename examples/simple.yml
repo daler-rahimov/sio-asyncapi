@@ -41,36 +41,39 @@ components:
     NoSpec:
       description: Specification is not provided
     UserSignUpRequest:
-      title: UserSignUpRequest
       description: Request model for user sign up
-      type: object
       properties:
         email:
-          title: Email
           description: User email
           example: bob@gmail.com
-          type: string
           format: email
+          title: Email
+          type: string
         password:
-          title: Password
           description: User password
           example: '123456'
+          title: Password
           type: string
       required:
       - email
       - password
-    UserSignUpResponse:
-      title: UserSignUpResponse
-      description: Response model for user sign up
+      title: UserSignUpRequest
       type: object
+    UserSignUpResponse:
+      description: Response model for user sign up
       properties:
         success:
-          title: Success
-          description: Success status
           default: true
+          description: Success status
+          title: Success
           type: boolean
         error:
-          title: Error
+          anyOf:
+          - type: string
+          - type: 'null'
+          default: null
           description: Error message if any
           example: Invalid request
-          type: string
+          title: Error
+      title: UserSignUpResponse
+      type: object

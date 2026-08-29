@@ -51,11 +51,27 @@ def model_dump(instance: Any, **kwargs: Any) -> dict[str, Any]:
     return instance.dict(**kwargs)
 
 
+def model_dump_jsonable(instance: Any) -> dict[str, Any]:
+    """Dump a model to a JSON-compatible dict for Socket.IO payloads."""
+    if hasattr(instance, "model_dump"):
+        return instance.model_dump(mode="json")
+    return json.loads(instance.json())
+
+
 def model_dump_json(instance: Any, **kwargs: Any) -> str:
     """Dump a model to JSON for either Pydantic major version."""
     if hasattr(instance, "model_dump_json"):
         return instance.model_dump_json(**kwargs)
     return instance.json(**kwargs)
+
+
+def field_schema_extra(**extra: Any) -> dict[str, Any]:
+    """Return Field kwargs that attach JSON Schema extras on Pydantic v1 and v2."""
+    from pydantic import VERSION
+
+    if str(VERSION).startswith("2"):
+        return {"json_schema_extra": extra}
+    return extra
 
 
 class BaseValidationError(Exception):

@@ -1,20 +1,21 @@
 """AsyncAPI 3.1 documentation generation for Socket.IO servers."""
 import copy
 import json
+import logging
 import re
 import textwrap
+from typing import Any, Callable, Dict, List, Literal, Optional, Type, Union
 from urllib.parse import urlsplit
-from typing import Any, Callable, Dict, Literal, Optional, Type, Union
 
 import yaml
-from loguru import logger
 from sio_asyncapi._pydantic import BaseModel
 
 from sio_asyncapi._compat import is_pydantic_model_type, model_schema
 
-from .utils import add_ref_prepath
+logger = logging.getLogger(__name__)
 
 NotProvidedType = Literal["NotProvided"]
+LIFECYCLE_EVENTS = frozenset({"connect", "disconnect"})
 
 add_description = """
 <br/> This specification targets AsyncAPI 3.1 and keeps Socket.IO ACK values in the custom `x-ack` message extension.
@@ -29,6 +30,18 @@ DEFAULT_COMPONENTS = {
         }
     },
 }
+
+DEFAULT_SOCKETIO_SECURITY_SCHEME = {
+    "type": "userPassword",
+    "description": (
+        "Socket.IO handshake authentication. The connect event payload "
+        "describes the auth object sent by the client."
+    ),
+}
+
+
+class SchemaNameCollisionError(ValueError):
+    """Raised when two different Pydantic models share an AsyncAPI schema name."""
 
 
 class AsyncAPIDoc:
@@ -99,7 +112,6 @@ class AsyncAPIDoc:
         )
         return f"{namespace_prefix}_{base_name}"
 
-
     @classmethod
     def operation_component_name(
         cls,
@@ -123,19 +135,36 @@ class AsyncAPIDoc:
         server_url: str = "http://localhost:5000",
         server_name: str = "BACKEND",
         server_protocol: str = "socketio",
+        security_scheme: Optional[Dict[str, Any]] = None,
+        security_scheme_name: str = "socketioAuth",
+        auth_model: Optional[Type[BaseModel]] = None,
     ) -> "AsyncAPIDoc":
         """Initialize AsyncAPI documentation generator."""
-        logger.info(f"{server_url=}, {server_name=}, {server_protocol=}")
+        logger.debug(
+            "Initializing AsyncAPI docs: server_url=%s server_name=%s protocol=%s",
+            server_url,
+            server_name,
+            server_protocol,
+        )
         parsed_server = urlsplit(server_url)
         server_host = parsed_server.netloc or parsed_server.path or server_url
-        server = {
+        server: Dict[str, Any] = {
             "host": server_host,
             "protocol": server_protocol,
         }
         if parsed_server.path and parsed_server.netloc and parsed_server.path != "/":
             server["pathname"] = parsed_server.path
 
-        return cls(
+        components = copy.deepcopy(DEFAULT_COMPONENTS)
+        if security_scheme is None and auth_model is not None:
+            security_scheme = copy.deepcopy(DEFAULT_SOCKETIO_SECURITY_SCHEME)
+        if security_scheme is not None:
+            components["securitySchemes"] = {security_scheme_name: security_scheme}
+            server["security"] = [
+                {"$ref": f"#/components/securitySchemes/{security_scheme_name}"}
+            ]
+
+        doc = cls(
             asyncapi="3.1.0",
             info={
                 "title": title,
@@ -145,8 +174,16 @@ class AsyncAPIDoc:
             servers={server_name: server},
             channels={},
             operations={},
-            components=copy.deepcopy(DEFAULT_COMPONENTS),
+            components=components,
         )
+        if auth_model is not None:
+            doc.add_new_receiver(
+                None,
+                "connect",
+                payload_model=auth_model,
+                ack_data_model=None,
+            )
+        return doc
 
     def dict(self, **_: Any) -> Dict[str, Any]:
         """Return the AsyncAPI document as a plain dict."""
@@ -161,7 +198,11 @@ class AsyncAPIDoc:
 
     def json(self, **kwargs: Any) -> str:
         """Return the AsyncAPI document as JSON."""
-        json_kwargs = {key: value for key, value in kwargs.items() if key not in {"by_alias", "exclude_none"}}
+        json_kwargs = {
+            key: value
+            for key, value in kwargs.items()
+            if key not in {"by_alias", "exclude_none"}
+        }
         return json.dumps(self.dict(), **json_kwargs)
 
     def get_yaml(self) -> str:
@@ -179,6 +220,94 @@ class AsyncAPIDoc:
             }
         return channel_name
 
+    def _choose_schema_name(
+        self,
+        preferred: str,
+        schema: Dict[str, Any],
+        parent_name: Optional[str] = None,
+    ) -> str:
+        """Return a unique components/schemas name, prefixing on collision."""
+        existing = self.components["schemas"].get(preferred)
+        if existing is None or existing == schema:
+            return preferred
+        if parent_name:
+            prefixed = f"{parent_name}_{preferred}"
+            prefixed_existing = self.components["schemas"].get(prefixed)
+            if prefixed_existing is None or prefixed_existing == schema:
+                return prefixed
+            raise SchemaNameCollisionError(
+                f"AsyncAPI schema name {prefixed!r} is already used by a different model. "
+                "Rename one of the Pydantic models to avoid the collision."
+            )
+        raise SchemaNameCollisionError(
+            f"AsyncAPI schema name {preferred!r} is already used by a different model. "
+            "Rename one of the Pydantic models to avoid the collision."
+        )
+
+    def _put_schema(self, name: str, schema: Dict[str, Any]) -> str:
+        """Store a schema component, reusing equal schemas and rejecting collisions."""
+        chosen = self._choose_schema_name(name, schema)
+        self.components["schemas"][chosen] = schema
+        return chosen
+
+    def _rewrite_defs_refs(self, node: Any, mapping: Dict[str, str]) -> Any:
+        """Rewrite local $defs/definitions refs to components/schemas refs."""
+        if isinstance(node, list):
+            for index, item in enumerate(node):
+                node[index] = self._rewrite_defs_refs(item, mapping)
+            return node
+        if not isinstance(node, dict):
+            return node
+
+        ref = node.get("$ref")
+        if isinstance(ref, str):
+            for prefix in ("#/$defs/", "#/definitions/"):
+                if ref.startswith(prefix):
+                    def_name = ref[len(prefix):]
+                    if def_name in mapping:
+                        node["$ref"] = f"#/components/schemas/{mapping[def_name]}"
+                    break
+        for key, value in list(node.items()):
+            if key != "$ref":
+                node[key] = self._rewrite_defs_refs(value, mapping)
+        return node
+
+    def _hoist_nested_schemas(
+        self,
+        schema: Dict[str, Any],
+        parent_name: str,
+    ) -> Dict[str, Any]:
+        """Promote nested JSON Schema $defs into components/schemas."""
+        schema = copy.deepcopy(schema)
+        defs: Dict[str, Any] = {}
+        if "$defs" in schema:
+            defs.update(schema.pop("$defs") or {})
+        if "definitions" in schema:
+            defs.update(schema.pop("definitions") or {})
+        if not defs:
+            return schema
+
+        name_map: Dict[str, str] = {}
+        flattened_defs: Dict[str, Dict[str, Any]] = {}
+        for def_name, def_schema in defs.items():
+            if not isinstance(def_schema, dict):
+                continue
+            flattened = self._hoist_nested_schemas(def_schema, def_name)
+            component_name = self._choose_schema_name(
+                def_name,
+                flattened,
+                parent_name=parent_name,
+            )
+            name_map[def_name] = component_name
+            flattened_defs[def_name] = flattened
+
+        for def_name, flattened in flattened_defs.items():
+            self._rewrite_defs_refs(flattened, name_map)
+            self._put_schema(name_map[def_name], flattened)
+
+        self._rewrite_defs_refs(schema, name_map)
+        return schema
+
     def _schema_ref(
         self,
         model: Optional[Union[Type[BaseModel], NotProvidedType]],
@@ -190,10 +319,9 @@ class AsyncAPIDoc:
             return None
 
         schema_name = model.__name__
-        schema = model_schema(model)
-        add_ref_prepath(schema, f"/components/schemas/{schema_name}")
-        self.components["schemas"][schema_name] = schema
-        return {"$ref": f"#/components/schemas/{schema_name}"}
+        schema = self._hoist_nested_schemas(model_schema(model), schema_name)
+        stored_name = self._put_schema(schema_name, schema)
+        return {"$ref": f"#/components/schemas/{stored_name}"}
 
     def _store_message(
         self,
@@ -205,7 +333,7 @@ class AsyncAPIDoc:
         payload: Optional[Dict[str, str]],
     ) -> str:
         """Store a reusable message component and attach it to a channel."""
-        message = {
+        message: Dict[str, Any] = {
             "name": event_name,
             "description": description,
         }
@@ -220,7 +348,7 @@ class AsyncAPIDoc:
 
     def add_new_receiver(
         self,
-        handler: Callable,
+        handler: Optional[Callable],
         name: str,
         message_name: Optional[str] = None,
         ack_data_model: Optional[Union[Type[BaseModel], NotProvidedType]] = None,
@@ -235,18 +363,24 @@ class AsyncAPIDoc:
             normalized_namespace,
             title_case=True,
         )
-        description = self._clean_description(handler.__doc__)
+        description = self._clean_description(
+            getattr(handler, "__doc__", None) if handler is not None else None
+        )
         payload_ref = self._schema_ref(payload_model)
-        message = {
+        message: Dict[str, Any] = {
             "name": name,
             "description": description,
         }
         if payload_ref is not None:
             message["payload"] = payload_ref
 
-        ack_ref = self._schema_ref(ack_data_model)
-        if ack_ref is not None:
-            message["x-ack"] = ack_ref
+        is_lifecycle = name in LIFECYCLE_EVENTS
+        if is_lifecycle:
+            message["x-lifecycle"] = True
+        else:
+            ack_ref = self._schema_ref(ack_data_model)
+            if ack_ref is not None:
+                message["x-ack"] = ack_ref
 
         self.components["messages"][message_component] = message
         self.channels[channel_name]["messages"][message_component] = {
@@ -258,13 +392,17 @@ class AsyncAPIDoc:
             name,
             normalized_namespace,
         )
-        operation = {
+        operation: Dict[str, Any] = {
             "action": "receive",
             "channel": {"$ref": f"#/channels/{channel_name}"},
-            "messages": [{"$ref": f"#/channels/{channel_name}/messages/{message_component}"}],
+            "messages": [
+                {"$ref": f"#/channels/{channel_name}/messages/{message_component}"}
+            ],
         }
         if description:
             operation["description"] = description
+        if is_lifecycle:
+            operation["x-lifecycle"] = name
 
         self.operations[operation_name] = operation
 
@@ -298,7 +436,7 @@ class AsyncAPIDoc:
             event,
             normalized_namespace,
         )
-        operation = {
+        operation: Dict[str, Any] = {
             "action": "send",
             "channel": {"$ref": f"#/channels/{channel_name}"},
             "messages": [{"$ref": message_ref}],
@@ -325,7 +463,7 @@ class AsyncAPIDoc:
         node: Any,
         doc_dict: Dict[str, Any],
         *,
-        seen: Optional[set[str]] = None,
+        seen: Optional[set] = None,
     ) -> Any:
         """Resolve local refs inside a schema or AsyncAPI node recursively."""
         if seen is None:
@@ -367,43 +505,60 @@ class AsyncAPIDoc:
     def get_agent_schema(self) -> Dict[str, Any]:
         """Return a compact agent-friendly event catalog derived from AsyncAPI 3.1."""
         doc_dict = self.dict()
-        events: list[Dict[str, Any]] = []
+        events: List[Dict[str, Any]] = []
 
         for operation_id in sorted(doc_dict["operations"]):
             operation = doc_dict["operations"][operation_id]
             channel = self._resolve_refs(operation["channel"], doc_dict)
             namespace = channel.get("address", "/")
-            direction = "client_to_server" if operation["action"] == "receive" else "server_to_client"
+            direction = (
+                "client_to_server"
+                if operation["action"] == "receive"
+                else "server_to_client"
+            )
             message_ref = operation["messages"][0]["$ref"]
             message_component = message_ref.rsplit("/", 1)[-1]
             message = self._resolve_refs({"$ref": message_ref}, doc_dict)
 
-            event = {
+            event: Dict[str, Any] = {
                 "name": message.get("name", message_component),
                 "namespace": namespace,
                 "direction": direction,
                 "operation_id": operation_id,
                 "message_component": message_component,
-                "description": message.get("description") or operation.get("description", ""),
+                "description": message.get("description")
+                or operation.get("description", ""),
             }
+            if message.get("x-lifecycle") or operation.get("x-lifecycle"):
+                event["lifecycle"] = operation.get("x-lifecycle") or message.get("name")
 
             payload = message.get("payload")
             if payload is not None:
-                schema_key = "input_schema" if direction == "client_to_server" else "output_schema"
+                schema_key = (
+                    "input_schema" if direction == "client_to_server" else "output_schema"
+                )
                 event[schema_key] = self._resolve_refs(payload, doc_dict)
                 if isinstance(payload, dict) and payload.get("x-component-ref"):
-                    event[f"{schema_key}_component"] = payload["x-component-ref"].rsplit("/", 1)[-1]
+                    event[f"{schema_key}_component"] = payload["x-component-ref"].rsplit(
+                        "/", 1
+                    )[-1]
+                elif isinstance(payload, dict) and payload.get("$ref"):
+                    event[f"{schema_key}_component"] = payload["$ref"].rsplit("/", 1)[-1]
 
             if direction == "client_to_server":
                 ack_schema = message.get("x-ack")
                 if ack_schema is not None:
                     event["ack_schema"] = self._resolve_refs(ack_schema, doc_dict)
-                    if isinstance(event["ack_schema"], dict) and event["ack_schema"].get("x-component-ref"):
-                        event["ack_schema_component"] = event["ack_schema"]["x-component-ref"].rsplit("/", 1)[-1]
+                    if isinstance(event["ack_schema"], dict) and event["ack_schema"].get(
+                        "x-component-ref"
+                    ):
+                        event["ack_schema_component"] = event["ack_schema"][
+                            "x-component-ref"
+                        ].rsplit("/", 1)[-1]
 
             events.append(event)
 
-        return {
+        result: Dict[str, Any] = {
             "format": "sio-asyncapi-agent-schema",
             "version": "1.0",
             "asyncapi_version": doc_dict["asyncapi"],
@@ -411,6 +566,10 @@ class AsyncAPIDoc:
             "servers": doc_dict["servers"],
             "events": events,
         }
+        security_schemes = doc_dict["components"].get("securitySchemes")
+        if security_schemes:
+            result["security_schemes"] = security_schemes
+        return result
 
     def get_agent_schema_json(self) -> str:
         """Return the compact agent-friendly event catalog as JSON."""

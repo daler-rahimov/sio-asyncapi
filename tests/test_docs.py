@@ -3,10 +3,11 @@ import pathlib
 import shutil
 from subprocess import check_call
 
+import pytest
 from flask import Flask
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from sio_asyncapi.asyncapi.docs import AsyncAPIDoc
+from sio_asyncapi.asyncapi.docs import AsyncAPIDoc, SchemaNameCollisionError
 from sio_asyncapi.application import AsyncAPISocketIO
 
 from .fixtures import socketio
@@ -22,10 +23,8 @@ def schema_has_type(schema: dict, expected_type: str) -> bool:
     return any(option.get("type") == expected_type for option in schema.get("anyOf", []))
 
 
-def test_validate_asycnapi_doc():
-    if shutil.which("asyncapi") is None:
-        return
-
+@pytest.mark.skipif(shutil.which("asyncapi") is None, reason="asyncapi CLI not installed")
+def test_validate_asyncapi_doc():
     file_name = "tmp_test_doc.yml"
     path = pathlib.Path(__file__).parent / file_name
     doc_str = socketio.asyncapi_doc.get_yaml()
@@ -49,7 +48,7 @@ def test_handler_docstring_is_used_as_message_description():
 
     assert doc["components"]["messages"]["Download_File"]["description"] == (
         "\n"
-        "Except request to download file from URL and save to server's file system. </br>\n"
+        "Accept request to download file from URL and save to server's file system. </br>\n"
         "Requests are **not** executed immediately, but added to queue.\n"
     )
 
@@ -99,21 +98,21 @@ def test_ack_schema_is_generated_as_x_ack_extension():
     assert request_message["x-ack"] == {"$ref": "#/components/schemas/DownloadAccepted"}
 
     ack_schema = doc["components"]["schemas"]["DownloadAccepted"]
-    defs_key = "$defs" if "$defs" in ack_schema else "definitions"
     assert ack_schema["description"] == "Response model for download file"
     assert ack_schema["title"] == "DownloadAccepted"
     assert ack_schema["type"] == "object"
     assert ack_schema["required"] == ["data"]
+    assert "$defs" not in ack_schema
+    assert "definitions" not in ack_schema
 
-    nested_data = ack_schema[defs_key]["Data"]
-    assert nested_data["title"] == "Data"
+    data_ref = ack_schema["properties"]["data"]["$ref"]
+    assert data_ref.startswith("#/components/schemas/")
+    nested_name = data_ref.rsplit("/", 1)[-1]
+    nested_data = doc["components"]["schemas"][nested_name]
     assert nested_data["type"] == "object"
     assert nested_data["properties"]["is_accepted"]["default"] is True
     assert nested_data["properties"]["is_accepted"]["title"] == "Is Accepted"
     assert nested_data["properties"]["is_accepted"]["type"] == "boolean"
-
-    data_ref = ack_schema["properties"]["data"]["$ref"]
-    assert data_ref == f"#/components/schemas/DownloadAccepted/{defs_key}/Data"
 
 
 def test_default_init_does_not_share_mutable_state():
@@ -204,8 +203,9 @@ def test_agent_schema_resolves_internal_schema_refs():
     by_name = {event["name"]: event for event in agent_schema["events"]}
 
     ack_schema = by_name["download_file"]["ack_schema"]
-    assert ack_schema["properties"]["data"]["title"] == "Data"
-    assert ack_schema["properties"]["data"]["x-component-ref"].endswith("/Data")
+    data_schema = ack_schema["properties"]["data"]
+    assert data_schema["properties"]["is_accepted"]["default"] is True
+    assert data_schema["x-component-ref"].startswith("#/components/schemas/")
 
 
 def test_agent_schema_json_matches_dict_export():
@@ -213,3 +213,115 @@ def test_agent_schema_json_matches_dict_export():
     agent_schema_json = socketio.get_agent_schema_json()
 
     assert json.loads(agent_schema_json) == agent_schema
+
+
+def test_doc_emit_skips_docs_when_generate_docs_is_false():
+    app = Flask(__name__)
+    sio = AsyncAPISocketIO(app, validate=True, generate_docs=False)
+
+    class StatusEmit(BaseModel):
+        message: str
+
+    @sio.doc_emit("status", StatusEmit)
+    def register_status():
+        return None
+
+    assert sio.emit_models[("status", "/")] is StatusEmit
+    assert sio.asyncapi_doc.dict()["operations"] == {}
+
+
+def test_doc_emit_accepts_deprecated_discription_alias():
+    app = Flask(__name__)
+    sio = AsyncAPISocketIO(app, validate=False, generate_docs=True)
+
+    class StatusEmit(BaseModel):
+        message: str
+
+    @sio.doc_emit("status", StatusEmit, discription="Legacy description")
+    def register_status():
+        return None
+
+    assert sio.asyncapi_doc.dict()["operations"]["send_status"]["description"] == (
+        "Legacy description"
+    )
+
+
+def test_schema_name_collision_raises():
+    doc = AsyncAPIDoc.default_init(title="Collision")
+
+    class User(BaseModel):
+        name: str
+
+    doc.add_new_receiver(lambda: None, "create_user", payload_model=User)
+
+    class OtherUser(BaseModel):
+        name: str
+        age: int
+
+    OtherUser.__name__ = "User"
+    with pytest.raises(SchemaNameCollisionError, match="User"):
+        doc.add_new_receiver(lambda: None, "update_user", payload_model=OtherUser)
+
+
+def test_connect_and_disconnect_are_documented_as_lifecycle_events():
+    app = Flask(__name__)
+    sio = AsyncAPISocketIO(app, validate=False, generate_docs=True)
+
+    class HandshakeAuth(BaseModel):
+        token: str = Field(..., description="Session token")
+
+    @sio.on("connect", get_from_typehint=True)
+    def on_connect(auth: HandshakeAuth):
+        """Authenticate the Socket.IO handshake."""
+        return True
+
+    @sio.on("disconnect")
+    def on_disconnect():
+        """Client disconnected."""
+        return None
+
+    doc = sio.asyncapi_doc.dict()
+    connect_message = doc["components"]["messages"]["Connect"]
+    assert connect_message["name"] == "connect"
+    assert connect_message["x-lifecycle"] is True
+    assert connect_message["payload"] == {"$ref": "#/components/schemas/HandshakeAuth"}
+    assert "x-ack" not in connect_message
+
+    disconnect_message = doc["components"]["messages"]["Disconnect"]
+    assert disconnect_message["name"] == "disconnect"
+    assert disconnect_message["x-lifecycle"] is True
+    assert "payload" not in disconnect_message
+    assert "x-ack" not in disconnect_message
+
+    assert doc["operations"]["receive_connect"]["x-lifecycle"] == "connect"
+    assert doc["operations"]["receive_disconnect"]["x-lifecycle"] == "disconnect"
+
+
+def test_auth_model_adds_connect_docs_and_security_scheme():
+    app = Flask(__name__)
+
+    class HandshakeAuth(BaseModel):
+        token: str
+
+    sio = AsyncAPISocketIO(
+        app,
+        validate=False,
+        generate_docs=True,
+        auth_model=HandshakeAuth,
+        server_name="DEMO",
+    )
+    doc = sio.asyncapi_doc.dict()
+    assert "socketioAuth" in doc["components"]["securitySchemes"]
+    assert doc["servers"]["DEMO"]["security"] == [
+        {"$ref": "#/components/securitySchemes/socketioAuth"}
+    ]
+    assert doc["components"]["messages"]["Connect"]["payload"] == {
+        "$ref": "#/components/schemas/HandshakeAuth"
+    }
+    agent_schema = sio.get_agent_schema()
+    assert "security_schemes" in agent_schema
+    connect_event = next(
+        event for event in agent_schema["events"] if event["name"] == "connect"
+    )
+    assert connect_event["lifecycle"] == "connect"
+    assert connect_event["input_schema_component"] == "HandshakeAuth"

@@ -1,8 +1,11 @@
-from flask import Flask
-from sio_asyncapi import AsyncAPISocketIO, ResponseValidationError, RequestValidationError
-from pydantic import BaseModel, Field, EmailStr
-from typing import Optional
 import logging
+from typing import Optional
+
+from flask import Flask
+from pydantic import BaseModel, EmailStr, Field
+
+from sio_asyncapi import AsyncAPISocketIO, RequestValidationError, ResponseValidationError
+
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -28,8 +31,11 @@ class UserSignUpRequest(BaseModel):
 class UserSignUpResponse(BaseModel):
     """Response model for user sign up"""
     success: bool = Field(True, description="Success status")
-    error: Optional[str] = Field( None, description="Error message if any",
-        example="Invalid request")
+    error: Optional[str] = Field(
+        None,
+        description="Error message if any",
+        example="Invalid request",
+    )
 
 
 @socketio.on("user_sign_up", get_from_typehint=True)
@@ -38,29 +44,22 @@ def user_sign_up(request: UserSignUpRequest) -> UserSignUpResponse:
     _ = request
     return UserSignUpResponse(success=True, error=None)
 
+
 @socketio.on_error_default
 def default_error_handler(e: Exception):
     """
-    Default error handler. It called if no other error handler defined.
-    Handles RequestValidationError and ResponseValidationError errors.
+    Default error handler. It is called if no other error handler is defined.
+    Handles RequestValidationError and ResponseValidationError.
     """
     if isinstance(e, RequestValidationError):
-        logger.error(f"Request validation error: {e}")
+        logger.error("Request validation error: %s", e)
         return {"success": False, "error": str(e)}
-    elif isinstance(e, ResponseValidationError):
-        logger.critical(f"Response validation error: {e}")
+    if isinstance(e, ResponseValidationError):
+        logger.critical("Response validation error: %s", e)
         raise e
-    else:
-        logger.critical(f"Unknown error: {e}")
-        raise e
+    logger.critical("Unknown error: %s", e)
+    raise e
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     socketio.run(app, debug=True)
-
-# import pathlib
-# if __name__ == "__main__":
-#     path = pathlib.Path(__file__).parent / "simple.yml"
-#     doc_str = socketio.asyncapi_doc.get_yaml()
-#     with open(path, "w") as f:
-#         f.write(doc_str)
-#     print(doc_str)
