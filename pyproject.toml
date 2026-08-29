@@ -22,7 +22,7 @@ pytest-cov = ">=4.0,<7.0"
 autopep8 = ">=2.0,<2.4"
 codespell = ">=2.2,<3.0"
 redis = ">=4.4,<6.0"
-pylint = ">=2.15.8,<4.0.0"
+pylint = ">=4.0.7,<5.0.0"
 hypothesis-auto = ">=1.1.4,<2.0"
 httpx = ">=0.27,<1.0"
 
