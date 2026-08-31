@@ -885,7 +885,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "flask-socketio", specifier = ">=5.3.2,<6.0" },
-    { name = "pydantic", extras = ["email"], specifier = ">=2.0,<3.0" },
+    { name = "pydantic", extras = ["email"], specifier = ">=2.13.5,<3.0" },
     { name = "python-engineio", specifier = ">=4.3.4,<5.0" },
     { name = "python-socketio", specifier = ">=5.11,<6.0" },
     { name = "pyyaml", specifier = ">=6.0,<7.0" },
